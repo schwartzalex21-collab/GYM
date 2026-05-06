@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#050505">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GYM">
+<meta name="mobile-web-app-capable" content="yes">
+<title>GYM — Premium Tracker</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">GYM</div>
+    <div class="date-pill" id="date-pill">—</div>
+  </header>
+
+  <!-- Pages Container -->
+  <main id="page-content"></main>
+</div>
+
+<!-- Timer FAB -->
+<button class="timer-fab" id="timer-fab" onclick="openTimer()">
+  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <circle cx="12" cy="13" r="8"/>
+    <path d="M12 9v4l2 2M9 2h6"/>
+  </svg>
+  <span id="timer-fab-text" style="display:none">00:00</span>
+</button>
+
+<!-- Tab Bar -->
+<nav class="tabbar">
+  <div class="tabbar-inner">
+    <button class="tab active" data-page="home" onclick="navigate('home')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>
+      <span class="tab-label">Acasă</span>
+    </button>
+    <button class="tab" data-page="progress" onclick="navigate('progress')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8M14 7h7v7"/></svg>
+      <span class="tab-label">Progres</span>
+    </button>
+    <button class="tab" data-page="history" onclick="navigate('history')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/></svg>
+      <span class="tab-label">Istoric</span>
+    </button>
+    <button class="tab" data-page="profile" onclick="navigate('profile')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
+      <span class="tab-label">Profil</span>
+    </button>
+  </div>
+</nav>
+
+<!-- Timer Modal -->
+<div class="timer-modal hidden" id="timer-modal">
+  <div class="timer-content">
+    <div class="section-subtitle">REST TIMER</div>
+    
+    <div class="timer-ring-container">
+      <svg class="timer-ring" viewBox="0 0 200 200">
+        <circle class="timer-ring-bg" cx="100" cy="100" r="90" />
+        <circle class="timer-ring-progress" cx="100" cy="100" r="90" />
+      </svg>
+      <div class="timer-display" id="timer-display">02:00</div>
+    </div>
+
+    <div class="timer-presets">
+      <button class="timer-preset" data-sec="60">1:00</button>
+      <button class="timer-preset" data-sec="90">1:30</button>
+      <button class="timer-preset active" data-sec="120">2:00</button>
+      <button class="timer-preset" data-sec="150">2:30</button>
+      <button class="timer-preset" data-sec="180">3:00</button>
+      <button class="timer-preset" data-sec="240">4:00</button>
+    </div>
+    <div class="timer-controls">
+      <button class="timer-btn" id="timer-reset">RESET</button>
+      <button class="timer-btn primary" id="timer-toggle">START</button>
+    </div>
+    <button class="timer-close" onclick="closeTimer()">ÎNCHIDE</button>
+  </div>
+</div>
+
+<!-- Custom Exercise Modal -->
+<div class="modal-overlay" id="custom-ex-modal">
+  <div class="modal-content">
+    <div class="modal-title">Adaugă Exercițiu</div>
+    <div class="form-group" style="margin-top: 20px;">
+      <label class="form-label">Nume Exercițiu</label>
+      <input type="text" class="form-input" id="custom-ex-name" placeholder="Ex: Bicep Curl la aparat" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Unitate de măsură</label>
+      <select class="form-input" id="custom-ex-unit" style="appearance: none; -webkit-appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill=%22none%22 stroke=%22%23fff%22 viewBox=%220 0 24 24%22 xmlns=%22http://www.w3.org/2000/svg%22><path stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%222%22 d=%22M19 9l-7 7-7-7%22></path></svg>'); background-repeat: no-repeat; background-position: right 16px center; background-size: 16px;">
+        <option value="total">TOTAL (Kg totale)</option>
+        <option value="side">/ SIDE (Kg pe o parte)</option>
+        <option value="db">DB EA (Kg per ganteră)</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="timer-btn" onclick="closeCustomExerciseModal()">ANULEAZĂ</button>
+      <button class="timer-btn primary" onclick="addCustomExercise()">ADAUGĂ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    // Only register if we create one later, or just to silence PWA install prompt logic
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+    });
+  }
+</script>
+</body>
+</html>
