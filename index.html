@@ -28,6 +28,12 @@
     <div class="date-pill" id="date-pill">—</div>
   </header>
 
+  <!-- XP Bar Global -->
+  <div class="global-xp-container">
+    <div class="global-xp-fill" id="global-xp-fill"></div>
+    <div class="global-xp-text" id="global-xp-text">LVL 1</div>
+  </div>
+
   <!-- Pages Container -->
   <main id="page-content"></main>
 </div>
@@ -112,6 +118,34 @@
       <button class="timer-btn" onclick="closeCustomExerciseModal()">ANULEAZĂ</button>
       <button class="timer-btn primary" onclick="addCustomExercise()">ADAUGĂ</button>
     </div>
+  </div>
+</div>
+
+<!-- Level Up Modal (Solo Leveling Style) -->
+<div class="modal-overlay" id="levelup-modal" style="z-index: 300;">
+  <div class="levelup-content">
+    <div class="levelup-system-msg">[SISTEM] Cerințe îndeplinite.</div>
+    <div class="levelup-title-main">LEVEL UP!</div>
+    <div class="levelup-level-text" id="levelup-level-text">Nivel 2</div>
+    <div class="levelup-rank-text" id="levelup-rank-text">E-Rank Novice</div>
+    <button class="timer-btn primary" style="width:100%; margin-top:32px;" onclick="closeLevelUpModal()">ACCEPTĂ</button>
+  </div>
+</div>
+
+  </div>
+</div>
+
+<!-- Quest Info Modal -->
+<div class="modal-overlay" id="quest-modal" style="z-index: 350;">
+  <div class="modal-content">
+    <div class="modal-title" id="quest-modal-title">Misiune</div>
+    <div id="quest-modal-body" style="margin-top: 20px; font-size: 16px; line-height: 1.6; color: var(--text-primary); background: var(--bg-input); padding: 20px; border-radius: 12px; border: 1px solid var(--border-light);">
+      <!-- Text here -->
+    </div>
+    <div class="modal-actions" style="margin-top: 24px;">
+      <button class="timer-btn primary" style="width: 100%;" onclick="completeQuestFromModal()">AM TERMINAT ✅</button>
+    </div>
+    <button class="timer-close" onclick="closeQuestModal()">×</button>
   </div>
 </div>
 

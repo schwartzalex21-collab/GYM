@@ -10,6 +10,13 @@ let state = {
   },
   workouts: {},      // { 'YYYY-MM-DD': { dayKey, exercises: { exId: { sets: [{kg, reps, unit}], notes } } } }
   customExercises: {}, // { exId: { name, target, defaultUnit } }
+  system: {
+    xp: 0,
+    level: 1,
+    perfectStreak: 0,
+    lastPerfectDate: null
+  },
+  habits: {}, // { 'YYYY-MM-DD': { wim_hof, prayer_am, affirmations, prayer_pm, workout_xp_claimed, perfect_claimed } }
   settings: {
     barWeight: 20
   }
@@ -27,8 +34,14 @@ function loadState() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      state = { ...state, ...parsed, profile: { ...state.profile, ...parsed.profile } };
+      state = { 
+        ...state, 
+        ...parsed, 
+        profile: { ...state.profile, ...(parsed.profile || {}) },
+        system: { ...state.system, ...(parsed.system || {}) } 
+      };
       if (!state.customExercises) state.customExercises = {};
+      if (!state.habits) state.habits = {};
     }
   } catch (e) {
     console.error('Load error:', e);
@@ -58,6 +71,134 @@ function escapeHtml(unsafe) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+const QUESTS = {
+  wim_hof: { 
+    id: 'wim_hof', 
+    name: 'Respirație Wim Hof', 
+    xp: 30, 
+    icon: '🫁',
+    instruction: 'Efectuează 3 runde de respirație profundă (30-40 inspirații) urmate de retenție și o inspirație de recuperare.' 
+  },
+  prayer_am: { 
+    id: 'prayer_am', 
+    name: 'Rugăciune AM (Tatăl Nostru)', 
+    xp: 20, 
+    icon: '🌅',
+    text: 'Tatăl nostru, Care ești în ceruri, sfințească-Se numele Tău, vie împărăția Ta, facă-se voia Ta, precum în cer, așa și pe pământ. Pâinea noastră cea de toate zilele dă-ne-o nouă astăzi și ne iartă nouă greșelile noastre, precum și noi iertăm greșiților noștri. Și nu ne duce pe noi în ispită, ci ne izbăvește de cel rău. Amin.'
+  },
+  affirmations: { 
+    id: 'affirmations', 
+    name: 'Afirmații de Putere', 
+    xp: 20, 
+    icon: '🗣️',
+    text: 'Sunt puternic. Sunt disciplinat. În fiecare zi devin o versiune mai bună. Corpul meu este templul meu. Mintea mea este calmă și concentrată. Merit succesul și fericirea.'
+  },
+  prayer_pm: { 
+    id: 'prayer_pm', 
+    name: 'Recunoștință PM', 
+    xp: 20, 
+    icon: '🌃',
+    instruction: 'Gândește-te la 3 lucruri bune care s-au întâmplat astăzi și mulțumește-i lui Dumnezeu pentru ele.'
+  },
+  workout: { id: 'workout', name: 'Antrenament Fizic', xp: 100, icon: '🏋️‍♂️', auto: true }
+};
+
+function getRequiredXP(level) {
+  // Formula ajustată: Nivelul 100 se atinge în aprox 6 luni de Perfect Days (aprox 38,000 XP total)
+  // Devine progresiv mai greu după nivelul 50.
+  const base = 80;
+  const growth = Math.floor(Math.pow(level, 1.2) * 2.5);
+  return Math.floor((base + growth) / 5) * 5;
+}
+
+function getRank(level) {
+  if (level < 10) return { name: 'E-Rank Novice', color: '#a0a0a0', bg: 'rgba(160,160,160,0.1)' };
+  if (level < 20) return { name: 'D-Rank Fighter', color: '#5cb85c', bg: 'rgba(92,184,92,0.1)' };
+  if (level < 35) return { name: 'C-Rank Elite', color: '#5bc0de', bg: 'rgba(91,192,222,0.1)' };
+  if (level < 50) return { name: 'B-Rank Veteran', color: '#337ab7', bg: 'rgba(51,122,183,0.1)' };
+  if (level < 70) return { name: 'A-Rank Champion', color: '#f0ad4e', bg: 'rgba(240,173,78,0.1)' };
+  if (level < 85) return { name: 'S-Rank Hero', color: '#d9534f', bg: 'rgba(217,83,79,0.1)' };
+  if (level < 100) return { name: 'National Level', color: '#9c27b0', bg: 'rgba(156,39,176,0.1)' };
+  if (level < 125) return { name: 'Shadow Monarch', color: '#00f0ff', bg: 'rgba(0,240,255,0.1)', glow: '0 0 15px #00f0ff' };
+  if (level < 150) return { name: 'Death Angel', color: '#ff0000', bg: 'rgba(255,0,0,0.1)', glow: '0 0 20px #ff0000' };
+  return { name: 'God Mode', color: '#ffffff', bg: 'rgba(255,255,255,0.1)', glow: '0 0 25px #ffffff', textStyle: 'color: #000; text-shadow: 0 0 5px #fff' };
+}
+
+function addXP(amount, reason) {
+  state.system.xp += amount;
+  showToast(`+${amount} XP (${reason})`);
+  
+  let leveledUp = false;
+  let req = getRequiredXP(state.system.level);
+  let levelsGained = 0;
+  
+  while (state.system.xp >= req) {
+    state.system.xp -= req;
+    state.system.level++;
+    leveledUp = true;
+    levelsGained++;
+    req = getRequiredXP(state.system.level);
+  }
+  
+  saveState();
+  if (leveledUp) {
+    showLevelUpModal(state.system.level, levelsGained);
+  }
+  updateGlobalXPBar();
+}
+
+function toggleHabit(date, habitId) {
+  if (navigator.vibrate) navigator.vibrate(10);
+  if (!state.habits[date]) state.habits[date] = {};
+  
+  const isDone = !state.habits[date][habitId];
+  state.habits[date][habitId] = isDone;
+  
+  if (isDone) {
+    addXP(QUESTS[habitId].xp, QUESTS[habitId].name);
+    checkPerfectDay(date);
+  } else {
+    state.system.xp = Math.max(0, state.system.xp - QUESTS[habitId].xp);
+    saveState();
+    updateGlobalXPBar();
+  }
+  render();
+}
+
+function checkPerfectDay(date) {
+  const h = state.habits[date];
+  if (h && h.wim_hof && h.prayer_am && h.affirmations && h.prayer_pm && h.workout_xp_claimed) {
+    if (!h.perfect_claimed) {
+      h.perfect_claimed = true;
+      addXP(50, 'Misiune Completă Zilnică!');
+      
+      const todayDate = new Date(date);
+      const lastDateStr = state.system.lastPerfectDate;
+      
+      if (lastDateStr) {
+         const lastDate = new Date(lastDateStr);
+         const diffTime = Math.abs(todayDate - lastDate);
+         const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+         if (diffDays === 1) {
+            state.system.perfectStreak++;
+         } else if (diffDays > 1) {
+            state.system.perfectStreak = 1;
+         }
+      } else {
+         state.system.perfectStreak = 1;
+      }
+      state.system.lastPerfectDate = date;
+      
+      const milestones = { 7: 150, 30: 500, 60: 1000, 90: 2000, 120: 3000 };
+      const s = state.system.perfectStreak;
+      if (milestones[s]) {
+         setTimeout(() => addXP(milestones[s], `🏆 ${s} ZILE PERFECT STREAK!`), 1500);
+      }
+      saveState();
+    }
+  }
 }
 
 function todayKey() {
@@ -135,6 +276,67 @@ function findLastExerciseEntry(exId, excludeDate) {
   return null;
 }
 
+function updateGlobalXPBar() {
+  const bar = document.getElementById('global-xp-fill');
+  const text = document.getElementById('global-xp-text');
+  if (!bar || !text) return;
+  
+  const currentLevel = state.system.level;
+  const currentXp = state.system.xp;
+  const reqXp = getRequiredXP(currentLevel);
+  
+  const pct = Math.min(100, Math.max(0, (currentXp / reqXp) * 100));
+  bar.style.width = pct + '%';
+  text.textContent = `LVL ${currentLevel} - ${currentXp}/${reqXp}`;
+}
+
+function showLevelUpModal(newLevel, levelsGained) {
+  if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+  const modal = document.getElementById('levelup-modal');
+  if (!modal) return;
+  const rank = getRank(newLevel);
+  
+  document.getElementById('levelup-level-text').textContent = `Nivel ${newLevel}`;
+  document.getElementById('levelup-rank-text').textContent = rank.name;
+  document.getElementById('levelup-rank-text').style.color = rank.color;
+  document.getElementById('levelup-rank-text').style.borderColor = rank.color;
+  document.getElementById('levelup-rank-text').style.boxShadow = rank.glow || 'none';
+  document.getElementById('levelup-rank-text').style.textShadow = rank.textStyle ? 'none' : (rank.glow || 'none');
+  
+  modal.classList.add('active');
+}
+
+function closeLevelUpModal() {
+  const modal = document.getElementById('levelup-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+let activeQuestId = null;
+
+function openQuestModal(id) {
+  const q = QUESTS[id];
+  if (!q) return;
+  activeQuestId = id;
+  
+  document.getElementById('quest-modal-title').textContent = q.name;
+  document.getElementById('quest-modal-body').innerHTML = `
+    <div style="font-style: italic; color: var(--accent); margin-bottom: 15px;">Misiune: ${q.instruction || 'Citește cu atenție:'}</div>
+    ${q.text || q.instruction}
+  `;
+  document.getElementById('quest-modal').classList.add('active');
+}
+
+function closeQuestModal() {
+  document.getElementById('quest-modal').classList.remove('active');
+}
+
+function completeQuestFromModal() {
+  if (activeQuestId) {
+    toggleHabit(todayKey(), activeQuestId);
+    closeQuestModal();
+  }
+}
+
 // =================== NAVIGATION ===================
 function navigate(page) {
   currentPage = page;
@@ -147,6 +349,7 @@ function navigate(page) {
 function render() {
   const pageEl = document.getElementById('page-content');
   document.getElementById('date-pill').textContent = formatDate(todayKey()).toUpperCase();
+  updateGlobalXPBar();
   pageEl.className = 'fade-in';
   
   // force reflow to trigger animation
@@ -170,16 +373,54 @@ function renderHome(el) {
     state.workouts[d].dayKey !== 'recovery' && hasAnyData(state.workouts[d])
   ).length;
   
-  const streakDays = computeStreak();
+  const habits = state.habits[today] || {};
+  
+  const questsHtml = Object.values(QUESTS).map(q => {
+    const isDone = habits[q.id];
+    // if workout, check if claimed, but don't allow click
+    if (q.id === 'workout') {
+       const wClaimed = habits.workout_xp_claimed;
+       return `
+         <div class="quest-item ${wClaimed ? 'done' : ''}" style="cursor: default;">
+           <div class="quest-icon">${q.icon}</div>
+           <div class="quest-info">
+             <div class="quest-name">${q.name}</div>
+             <div class="quest-xp">+${q.xp} XP</div>
+           </div>
+           <div class="quest-checkbox">
+             <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7"/></svg>
+           </div>
+         </div>
+       `;
+    }
+    
+    return `
+      <div class="quest-item ${isDone ? 'done' : ''}" onclick="openQuestModal('${q.id}')">
+        <div class="quest-icon">${q.icon}</div>
+        <div class="quest-info">
+          <div class="quest-name">${q.name}</div>
+          <div class="quest-xp">+${q.xp} XP</div>
+        </div>
+        <div class="quest-checkbox" onclick="event.stopPropagation(); toggleHabit('${today}', '${q.id}')">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+      </div>
+    `;
+  }).join('');
   
   el.innerHTML = `
     <div class="greeting-card">
-      <div class="greeting">Salut,</div>
-      <div class="greeting-name">${escapeHtml(state.profile.name || 'Alex').toUpperCase()}</div>
+      <div class="greeting">SISTEMUL TE SALUTĂ,</div>
+      <div class="greeting-name">${escapeHtml(state.profile.name || 'Jucător').toUpperCase()}</div>
       <div class="greeting-stats">
         <span><strong>${totalWorkouts}</strong> antrenamente</span>
-        <span><strong>${streakDays}</strong> streak</span>
+        <span><strong>${state.system.perfectStreak}</strong> zile perfecte</span>
       </div>
+    </div>
+
+    <div class="quests-container">
+      <div class="section-subtitle" style="color: var(--accent); margin-bottom: 12px;">Misiuni Zilnice</div>
+      ${questsHtml}
     </div>
 
     ${todayWorkout ? `
@@ -553,6 +794,15 @@ function copyLastSets(exId) {
 
 function finishWorkout() {
   if (navigator.vibrate) navigator.vibrate([20, 50, 20]);
+  
+  const today = todayKey();
+  if (!state.habits[today]) state.habits[today] = {};
+  if (!state.habits[today].workout_xp_claimed) {
+     state.habits[today].workout_xp_claimed = true;
+     addXP(QUESTS.workout.xp, 'Antrenament Finalizat');
+     checkPerfectDay(today);
+  }
+  
   saveState();
   showToast('💪 Antrenament salvat cu succes!');
   setTimeout(() => navigate('home'), 1000);
@@ -939,14 +1189,39 @@ function renderHistory(el) {
   `;
 }
 
-// =================== PROFILE PAGE ===================
+// =================== PROFILE / PLAYER STATUS ===================
 function renderProfile(el) {
+  const lvl = state.system.level;
+  const rank = getRank(lvl);
+  const reqXp = getRequiredXP(lvl);
+  const totalWorkouts = Object.keys(state.workouts).filter(d => hasAnyData(state.workouts[d])).length;
   const p = state.profile;
+
   el.innerHTML = `
-    <div class="section-title">Profil</div>
+    <div class="section-title">STATUS JUCĂTOR</div>
     
+    <div class="player-status-card">
+       <div class="player-rank-badge" style="color: ${rank.color}; border-color: ${rank.color}; background: ${rank.bg}; box-shadow: ${rank.glow || 'none'}; ${rank.textStyle || ''}">
+         ${rank.name}
+       </div>
+       <div class="player-level-big" style="color: ${rank.color}; text-shadow: ${rank.glow || 'none'}">${lvl}</div>
+       <div class="player-xp-detail">${state.system.xp} / ${reqXp} XP</div>
+       
+       <div class="player-stats-grid">
+         <div class="p-stat-box">
+           <div class="p-stat-label">Zile Perfecte</div>
+           <div class="p-stat-val">${state.system.perfectStreak}</div>
+         </div>
+         <div class="p-stat-box">
+           <div class="p-stat-label">Antrenamente</div>
+           <div class="p-stat-val">${totalWorkouts}</div>
+         </div>
+       </div>
+    </div>
+
+    <div class="section-title" style="margin-top: 32px;">SETĂRI PROFIL</div>
     <div class="card">
-      <div class="avatar-section">
+      <div class="profile-header">
         <div class="avatar" onclick="document.getElementById('photo-input').click()">
           ${p.photo ? `<img src="${p.photo}" alt="Avatar">` : (p.name?.[0] || 'A').toUpperCase()}
           <div class="avatar-edit">
