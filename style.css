@@ -1542,16 +1542,15 @@ input[type="number"], input[type="text"], textarea {
 }
 
 /* Player Status Page */
-.player-status-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-light);
-  border-radius: 24px;
-  padding: 32px 24px;
-  text-align: center;
+.greeting-card {
+  background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 28px;
+  padding: 32px;
   margin-bottom: 24px;
   position: relative;
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
 }
 
 .player-rank-badge {
@@ -1615,65 +1614,73 @@ input[type="number"], input[type="text"], textarea {
 .header-status-left {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
 }
 
 .player-rank-mini {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 1px;
+  letter-spacing: 2px;
   color: var(--accent);
   text-transform: uppercase;
+  opacity: 0.9;
 }
 
 .level-badge-mini {
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 18px;
+  font-size: 24px;
   color: #fff;
-  letter-spacing: 1px;
-  line-height: 1;
+  letter-spacing: 1.5px;
+  line-height: 1.1;
 }
 
-/* Updated XP Bar Visibility */
+/* Glassmorphism Header */
+.header {
+  padding: 12px 20px;
+  background: rgba(10, 10, 10, 0.7) !important;
+  backdrop-filter: blur(15px) saturate(180%);
+  -webkit-backdrop-filter: blur(15px) saturate(180%);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
-
-/* Sticky Fix for Progress Bar */
+/* Integrated XP Bar - Minimalist HUD Style */
 .global-xp-container {
   width: 100%;
-  height: 14px; /* Slightly thicker */
-  background: rgba(0,0,0,0.8);
+  height: 3px;
+  background: rgba(255, 255, 255, 0.05);
   position: sticky;
-  top: 68px; 
-  z-index: 100;
+  top: 64px; /* Matches header height approx */
+  z-index: 999;
   margin-bottom: 24px;
-  border-top: 1px solid rgba(0,240,255,0.3);
-  border-bottom: 1px solid rgba(0,240,255,0.3);
-  box-shadow: 0 0 15px rgba(0,240,255,0.1);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
+  overflow: visible;
 }
 
 .global-xp-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--accent), #fff);
   width: 0%;
-  transition: width 1s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 0 15px var(--accent);
+  transition: width 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 0 10px var(--accent);
 }
 
 .global-xp-text {
   position: absolute;
-  width: 100%;
-  text-align: center;
+  top: 6px;
+  right: 20px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8px;
-  font-weight: 900;
-  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 1px;
-  text-shadow: 0 1px 2px #000;
+  opacity: 0.8;
   pointer-events: none;
 }
 
@@ -1685,11 +1692,7 @@ input[type="number"], input[type="text"], textarea {
   box-shadow: inset 0 0 10px rgba(0,240,255,0.05);
 }
 
-/* Header Adjustments */
-.header {
-  padding: 16px 0; /* Tighter padding for mobile */
-  background: var(--bg-main); /* solid background to prevent overlap */
-}
+/* Header Adjustments removed, using new .header above */
 
 /* Quest Icon Glow */
 .quest-icon img {
