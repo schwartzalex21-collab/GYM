@@ -78,31 +78,31 @@ const QUESTS = {
     id: 'wim_hof', 
     name: 'Respirație Wim Hof', 
     xp: 30, 
-    icon: '🫁',
+    img: 'q-wimhof.png',
     instruction: 'Efectuează 3 runde de respirație profundă (30-40 inspirații) urmate de retenție și o inspirație de recuperare.' 
   },
   prayer_am: { 
     id: 'prayer_am', 
     name: 'Rugăciune AM (Tatăl Nostru)', 
     xp: 20, 
-    icon: '🌅',
+    img: 'q-prayer-am.png',
     text: 'Tatăl nostru, Care ești în ceruri, sfințească-Se numele Tău, vie împărăția Ta, facă-se voia Ta, precum în cer, așa și pe pământ. Pâinea noastră cea de toate zilele dă-ne-o nouă astăzi și ne iartă nouă greșelile noastre, precum și noi iertăm greșiților noștri. Și nu ne duce pe noi în ispită, ci ne izbăvește de cel rău. Amin.'
   },
   affirmations: { 
     id: 'affirmations', 
     name: 'Afirmații de Putere', 
     xp: 20, 
-    icon: '🗣️',
+    img: 'q-affirmations.png',
     text: 'Sunt puternic. Sunt disciplinat. În fiecare zi devin o versiune mai bună. Corpul meu este templul meu. Mintea mea este calmă și concentrată. Merit succesul și fericirea.'
   },
   prayer_pm: { 
     id: 'prayer_pm', 
     name: 'Recunoștință PM', 
     xp: 20, 
-    icon: '🌃',
+    img: 'q-prayer-pm.png',
     instruction: 'Gândește-te la 3 lucruri bune care s-au întâmplat astăzi și mulțumește-i lui Dumnezeu pentru ele.'
   },
-  workout: { id: 'workout', name: 'Antrenament Fizic', xp: 100, icon: '🏋️‍♂️', auto: true }
+  workout: { id: 'workout', name: 'Antrenament Fizic', xp: 100, img: 'q-workout.png', auto: true }
 };
 
 function getRequiredXP(level) {
@@ -127,26 +127,31 @@ function getRank(level) {
 }
 
 function addXP(amount, reason) {
+  const oldLevel = state.system.level;
   state.system.xp += amount;
-  showToast(`+${amount} XP (${reason})`);
   
-  let leveledUp = false;
-  let req = getRequiredXP(state.system.level);
+  
+  // Prevenim XP negativ sub nivelul curent
+  if (state.system.xp < 0) {
+    state.system.xp = 0;
+  }
+  
   let levelsGained = 0;
-  
-  while (state.system.xp >= req) {
-    state.system.xp -= req;
+  while (state.system.xp >= getRequiredXP(state.system.level)) {
+    state.system.xp -= getRequiredXP(state.system.level);
     state.system.level++;
-    leveledUp = true;
     levelsGained++;
-    req = getRequiredXP(state.system.level);
+  }
+  
+  if (levelsGained > 0) {
+    showLevelUpModal(state.system.level, levelsGained);
   }
   
   saveState();
-  if (leveledUp) {
-    showLevelUpModal(state.system.level, levelsGained);
-  }
   updateGlobalXPBar();
+  
+  const prefix = amount >= 0 ? '+' : '';
+  showToast(`${prefix}${amount} XP (${reason})`);
 }
 
 function toggleHabit(date, habitId) {
@@ -208,7 +213,8 @@ function todayKey() {
 }
 
 function formatDate(dateStr) {
-  const d = new Date(dateStr);
+  const [y, m, d_val] = dateStr.split('-').map(Number);
+  const d = new Date(y, m - 1, d_val);
   const days = ['Dum', 'Lun', 'Mar', 'Mie', 'Joi', 'Vin', 'Sâm'];
   const months = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun', 'Iul', 'Aug', 'Sep', 'Oct', 'Noi', 'Dec'];
   return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`;
@@ -278,16 +284,28 @@ function findLastExerciseEntry(exId, excludeDate) {
 
 function updateGlobalXPBar() {
   const bar = document.getElementById('global-xp-fill');
-  const text = document.getElementById('global-xp-text');
-  if (!bar || !text) return;
+  const hRank = document.getElementById('header-rank');
+  const hLevel = document.getElementById('header-level');
+  if (!bar) return;
   
   const currentLevel = state.system.level;
   const currentXp = state.system.xp;
   const reqXp = getRequiredXP(currentLevel);
+  const rank = getRank(currentLevel);
   
   const pct = Math.min(100, Math.max(0, (currentXp / reqXp) * 100));
   bar.style.width = pct + '%';
-  text.textContent = `LVL ${currentLevel} - ${currentXp}/${reqXp}`;
+  bar.style.background = `linear-gradient(90deg, ${rank.color}, #fff)`;
+  bar.style.boxShadow = `0 0 15px ${rank.color}`;
+  
+  if (hRank) {
+    hRank.textContent = rank.name;
+    hRank.style.color = rank.color;
+    hRank.style.textShadow = rank.glow || 'none';
+  }
+  if (hLevel) {
+    hLevel.textContent = `LVL ${currentLevel}`;
+  }
 }
 
 function showLevelUpModal(newLevel, levelsGained) {
@@ -367,22 +385,20 @@ function render() {
 // =================== HOME PAGE ===================
 function renderHome(el) {
   const today = todayKey();
+  const habits = state.habits[today] || {};
   const todayWorkout = state.workouts[today];
+  const isWorkoutFinished = habits.workout_xp_claimed;
   
   const totalWorkouts = Object.keys(state.workouts).filter(d => 
-    state.workouts[d].dayKey !== 'recovery' && hasAnyData(state.workouts[d])
+    state.workouts[d].dayKey !== 'recovery' && (hasAnyData(state.workouts[d]) || state.habits[d]?.workout_xp_claimed)
   ).length;
-  
-  const habits = state.habits[today] || {};
   
   const questsHtml = Object.values(QUESTS).map(q => {
     const isDone = habits[q.id];
-    // if workout, check if claimed, but don't allow click
     if (q.id === 'workout') {
-       const wClaimed = habits.workout_xp_claimed;
        return `
-         <div class="quest-item ${wClaimed ? 'done' : ''}" style="cursor: default;">
-           <div class="quest-icon">${q.icon}</div>
+         <div class="quest-item ${isWorkoutFinished ? 'done' : ''}" style="cursor: default;">
+           <div class="quest-icon"><img src="${q.img}" style="width:100%; height:100%; object-fit: cover; border-radius: 4px; box-shadow: 0 0 5px var(--accent);"></div>
            <div class="quest-info">
              <div class="quest-name">${q.name}</div>
              <div class="quest-xp">+${q.xp} XP</div>
@@ -396,7 +412,7 @@ function renderHome(el) {
     
     return `
       <div class="quest-item ${isDone ? 'done' : ''}" onclick="openQuestModal('${q.id}')">
-        <div class="quest-icon">${q.icon}</div>
+        <div class="quest-icon"><img src="${q.img}" style="width:100%; height:100%; object-fit: cover; border-radius: 4px; box-shadow: 0 0 5px var(--accent);"></div>
         <div class="quest-info">
           <div class="quest-name">${q.name}</div>
           <div class="quest-xp">+${q.xp} XP</div>
@@ -423,7 +439,7 @@ function renderHome(el) {
       ${questsHtml}
     </div>
 
-    ${todayWorkout ? `
+    ${(todayWorkout && !isWorkoutFinished) ? `
       <div class="card" style="border-color: var(--accent); background: linear-gradient(135deg, var(--bg-surface), rgba(0,240,255,0.05)); cursor: pointer;" onclick="openWorkout('${today}', '${todayWorkout.dayKey}')">
         <div class="section-subtitle" style="color: var(--accent); margin-bottom: 4px;">⚡ Antrenament în curs azi</div>
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
@@ -456,9 +472,15 @@ function renderHome(el) {
 }
 
 function hasAnyData(workout) {
-  return Object.values(workout.exercises || {}).some(ex => 
-    ex.sets && ex.sets.some(s => s.kg || s.reps)
-  );
+  if (!workout || !workout.exercises) return false;
+  return Object.values(workout.exercises).some(ex => {
+    if (!ex || !ex.sets) return false;
+    return ex.sets.some(s => {
+      const k = String(s.kg || '').trim();
+      const r = String(s.reps || '').trim();
+      return k !== '' || r !== '';
+    });
+  });
 }
 
 function computeStreak() {

@@ -1,12 +1,12 @@
 {
-  "name": "GYM",
-  "short_name": "GYM",
-  "description": "PPL Hypertrophy Tracker",
-  "start_url": "/",
+  "name": "SOLO LEVELING",
+  "short_name": "EVOLVE",
+  "description": "Solo Leveling Gamified Fitness & Wellness",
+  "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0a0a0a",
-  "theme_color": "#0a0a0a",
+  "theme_color": "#00f0ff",
   "icons": [
     {
       "src": "icon-192.png",

@@ -24,14 +24,16 @@
 <div class="app">
   <!-- Header -->
   <header class="header">
-    <div class="logo">GYM</div>
+    <div class="header-status-left" onclick="navigate('home')" style="cursor: pointer;">
+      <div class="player-rank-mini" id="header-rank">E-RANK</div>
+      <div class="level-badge-mini" id="header-level">LVL 1</div>
+    </div>
     <div class="date-pill" id="date-pill">—</div>
   </header>
 
   <!-- XP Bar Global -->
   <div class="global-xp-container">
     <div class="global-xp-fill" id="global-xp-fill"></div>
-    <div class="global-xp-text" id="global-xp-text">LVL 1</div>
   </div>
 
   <!-- Pages Container -->
@@ -128,7 +130,7 @@
     <div class="levelup-title-main">LEVEL UP!</div>
     <div class="levelup-level-text" id="levelup-level-text">Nivel 2</div>
     <div class="levelup-rank-text" id="levelup-rank-text">E-Rank Novice</div>
-    <button class="timer-btn primary" style="width:100%; margin-top:32px;" onclick="closeLevelUpModal()">ACCEPTĂ</button>
+    <button class="timer-btn primary" style="width:100%; margin-top:32px;" onclick="closeLevelUpModal()">CONTINUĂ EVOLUȚIA</button>
   </div>
 </div>
 
@@ -154,9 +156,8 @@
 <script src="app.js"></script>
 <script>
   if ('serviceWorker' in navigator) {
-    // Only register if we create one later, or just to silence PWA install prompt logic
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
     });
   }
 </script>
