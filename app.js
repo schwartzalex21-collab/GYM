@@ -50,6 +50,16 @@ function saveState() {
 }
 
 // =================== HELPERS ===================
+function escapeHtml(unsafe) {
+  if (unsafe === null || unsafe === undefined) return '';
+  return unsafe.toString()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function todayKey() {
   const d = new Date();
   const pad = n => String(n).padStart(2, '0');
@@ -410,7 +420,11 @@ function ensureExercise(exId) {
   if (!state.workouts[currentWorkoutDate].exercises[exId]) {
     const meta = getExerciseMeta(exId);
     state.workouts[currentWorkoutDate].exercises[exId] = {
-      sets: [],
+      sets: [
+        { kg: '', reps: '', unit: meta.defaultUnit || 'total' },
+        { kg: '', reps: '', unit: meta.defaultUnit || 'total' },
+        { kg: '', reps: '', unit: meta.defaultUnit || 'total' }
+      ],
       notes: ''
     };
   }
