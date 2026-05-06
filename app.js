@@ -286,6 +286,7 @@ function updateGlobalXPBar() {
   const bar = document.getElementById('global-xp-fill');
   const hRank = document.getElementById('header-rank');
   const hLevel = document.getElementById('header-level');
+  const hXpText = document.getElementById('global-xp-text');
   if (!bar) return;
   
   const currentLevel = state.system.level;
@@ -305,6 +306,9 @@ function updateGlobalXPBar() {
   }
   if (hLevel) {
     hLevel.textContent = `LVL ${currentLevel}`;
+  }
+  if (hXpText) {
+    hXpText.textContent = `${currentXp} / ${reqXp} XP`;
   }
 }
 
