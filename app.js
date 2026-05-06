@@ -238,7 +238,7 @@ function startWorkout(dayKey) {
   if (!state.workouts[today]) {
     state.workouts[today] = { dayKey, exercises: {} };
   } else if (state.workouts[today].dayKey !== dayKey) {
-    if (!confirm(\`Astăzi ai început deja \${window.PROGRAM[state.workouts[today].dayKey]?.name || 'un antrenament'}. Vrei să schimbi cu \${window.PROGRAM[dayKey].name}? (datele actuale se vor pierde)\`)) {
+    if (!confirm(`Astăzi ai început deja ${window.PROGRAM[state.workouts[today].dayKey]?.name || 'un antrenament'}. Vrei să schimbi cu ${window.PROGRAM[dayKey].name}? (datele actuale se vor pierde)`)) {
       return;
     }
     state.workouts[today] = { dayKey, exercises: {} };
