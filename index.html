@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#050505">
+<meta name="theme-color" content="#0a0a0f">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="GYM">
+<meta name="apple-mobile-web-app-title" content="HUNTER">
 <meta name="mobile-web-app-capable" content="yes">
-<title>GYM — Premium Tracker</title>
+<title>SOLO HUNTER — Sistemul</title>
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon-192.png">
-<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,7 +22,6 @@
 <body>
 
 <div class="app">
-  <!-- Header -->
   <header class="header">
     <div class="header-status-left" onclick="navigate('home')" style="cursor: pointer;">
       <div class="player-rank-mini" id="header-rank">E-RANK</div>
@@ -31,17 +30,14 @@
     <div class="date-pill" id="date-pill">—</div>
   </header>
 
-  <!-- XP Bar Global -->
   <div class="global-xp-container">
     <div class="global-xp-fill" id="global-xp-fill"></div>
-    <div class="global-xp-text" id="global-xp-text">0 / 0 XP</div>
   </div>
+  <div class="global-xp-text" id="global-xp-text">0 / 0 XP</div>
 
-  <!-- Pages Container -->
   <main id="page-content"></main>
 </div>
 
-<!-- Timer FAB -->
 <button class="timer-fab" id="timer-fab" onclick="openTimer()">
   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <circle cx="12" cy="13" r="8"/>
@@ -50,41 +46,54 @@
   <span id="timer-fab-text" style="display:none">00:00</span>
 </button>
 
-<!-- Tab Bar -->
 <nav class="tabbar">
   <div class="tabbar-inner">
     <button class="tab active" data-page="home" onclick="navigate('home')">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>
-      <span class="tab-label">Acasă</span>
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M14.5 3.5l6 6-10 10-3 1 1-3 6-14z"/>
+        <path stroke-linecap="round" d="M11 7l6 6"/>
+      </svg>
+      <span class="tab-label">Azi</span>
     </button>
     <button class="tab" data-page="progress" onclick="navigate('progress')">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8M14 7h7v7"/></svg>
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 17l6-6 4 4 8-8M14 7h7v7"/>
+      </svg>
       <span class="tab-label">Progres</span>
     </button>
-    <button class="tab" data-page="history" onclick="navigate('history')">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 3"/></svg>
-      <span class="tab-label">Istoric</span>
+    <button class="tab" data-page="rank" onclick="navigate('rank')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8 4h8l-1 5a4 4 0 11-6 0L8 4z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 4H3v3a3 3 0 003 3M19 4h2v3a3 3 0 01-3 3M10 18h4M9 21h6"/>
+      </svg>
+      <span class="tab-label">Rang</span>
     </button>
-    <button class="tab" data-page="profile" onclick="navigate('profile')">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
-      <span class="tab-label">Profil</span>
+    <button class="tab" data-page="achievements" onclick="navigate('achievements')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+      </svg>
+      <span class="tab-label">Badges</span>
+    </button>
+    <button class="tab" data-page="hunter" onclick="navigate('hunter')">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="4"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 21c0-4 4-7 8-7s8 3 8 7"/>
+      </svg>
+      <span class="tab-label">Hunter</span>
     </button>
   </div>
 </nav>
 
-<!-- Timer Modal -->
 <div class="timer-modal hidden" id="timer-modal">
   <div class="timer-content">
     <div class="section-subtitle">REST TIMER</div>
-    
     <div class="timer-ring-container">
       <svg class="timer-ring" viewBox="0 0 200 200">
-        <circle class="timer-ring-bg" cx="100" cy="100" r="90" />
-        <circle class="timer-ring-progress" cx="100" cy="100" r="90" />
+        <circle class="timer-ring-bg" cx="100" cy="100" r="90"/>
+        <circle class="timer-ring-progress" cx="100" cy="100" r="90"/>
       </svg>
       <div class="timer-display" id="timer-display">02:00</div>
     </div>
-
     <div class="timer-presets">
       <button class="timer-preset" data-sec="60">1:00</button>
       <button class="timer-preset" data-sec="90">1:30</button>
@@ -101,11 +110,10 @@
   </div>
 </div>
 
-<!-- Custom Exercise Modal -->
 <div class="modal-overlay" id="custom-ex-modal">
   <div class="modal-content">
     <div class="modal-title">Adaugă Exercițiu</div>
-    <div class="form-group" style="margin-top: 20px;">
+    <div class="form-group" style="margin-top: 18px;">
       <label class="form-label">Nume Exercițiu</label>
       <input type="text" class="form-input" id="custom-ex-name" placeholder="Ex: Bicep Curl la aparat" autocomplete="off">
     </div>
@@ -124,35 +132,49 @@
   </div>
 </div>
 
-<!-- Level Up Modal (Solo Leveling Style) -->
 <div class="modal-overlay" id="levelup-modal" style="z-index: 300;">
   <div class="levelup-content">
     <div class="levelup-system-msg">[SISTEM] Cerințe îndeplinite.</div>
     <div class="levelup-title-main">LEVEL UP!</div>
     <div class="levelup-level-text" id="levelup-level-text">Nivel 2</div>
     <div class="levelup-rank-text" id="levelup-rank-text">E-Rank Novice</div>
-    <button class="timer-btn primary" style="width:100%; margin-top:32px;" onclick="closeLevelUpModal()">CONTINUĂ EVOLUȚIA</button>
+    <button class="timer-btn primary" style="width:100%; margin-top:24px;" onclick="closeLevelUpModal()">CONTINUĂ EVOLUȚIA</button>
   </div>
 </div>
 
-  </div>
-</div>
-
-<!-- Quest Info Modal -->
 <div class="modal-overlay" id="quest-modal" style="z-index: 350;">
   <div class="modal-content">
     <div class="modal-title" id="quest-modal-title">Misiune</div>
-    <div id="quest-modal-body" style="margin-top: 20px; font-size: 16px; line-height: 1.6; color: var(--text-primary); background: var(--bg-input); padding: 20px; border-radius: 12px; border: 1px solid var(--border-light);">
-      <!-- Text here -->
+    <div id="quest-modal-body" style="margin-top: 18px; font-size: 15px; line-height: 1.6; color: var(--text-primary); background: var(--bg-input); padding: 16px; border-radius: 10px; border: 1px solid var(--border-light);"></div>
+    <div class="modal-actions" style="margin-top: 18px;">
+      <button class="timer-btn primary" style="width: 100%;" onclick="closeQuestModal()">ÎNCHIDE</button>
     </div>
-    <div class="modal-actions" style="margin-top: 24px;">
-      <button class="timer-btn primary" style="width: 100%;" onclick="completeQuestFromModal()">AM TERMINAT ✅</button>
-    </div>
-    <button class="timer-close" onclick="closeQuestModal()">×</button>
   </div>
 </div>
 
-<!-- Scripts -->
+<div class="modal-overlay" id="bonus-modal" style="z-index: 350;">
+  <div class="modal-content">
+    <div class="modal-title">Bonus</div>
+    <div id="bonus-modal-body" style="margin-top: 14px; background: var(--bg-input); padding: 16px; border-radius: 10px; border: 1px solid var(--border-light);"></div>
+    <div class="modal-actions" style="margin-top: 18px;">
+      <button class="timer-btn primary" style="width: 100%;" onclick="closeBonusModal()">ÎNCHIDE</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="achievement-modal" style="z-index: 400;">
+  <div class="achievement-modal-content">
+    <div class="particles"></div>
+    <div class="ach-system-msg">[SISTEM] ACHIEVEMENT DEBLOCAT</div>
+    <div class="ach-modal-icon">🏆</div>
+    <div class="ach-modal-title">Achievement</div>
+    <div class="ach-modal-desc">Descriere</div>
+    <button class="timer-btn primary" style="width:100%;" onclick="closeAchievementModal()">CONTINUĂ</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="weekly-modal" style="z-index: 350;"></div>
+
 <script src="data.js"></script>
 <script src="app.js"></script>
 <script>
