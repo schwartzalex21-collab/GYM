@@ -313,6 +313,46 @@ function checkPerfectDay(date) {
   saveState();
 }
 
+// =================== STREAK RECOMPUTE ===================
+// Reconstruiește streak-ul din istoricul real al habits-urilor.
+// Necesar la import (date vechi) și la migrare prima dată cu noul sistem.
+function isPerfectDay(h) {
+  return !!(h && h.wim_hof && h.prayer_am && h.affirmations && h.prayer_pm && h.workout_xp_claimed);
+}
+
+function recomputeStreakFromHabits() {
+  const today = todayKey();
+  // Găsește cea mai recentă zi perfectă (azi sau în trecut)
+  let lastPerfect = null;
+  let c = today;
+  for (let i = 0; i < 3650; i++) { // căutare până la ~10 ani în trecut
+    if (isPerfectDay(state.habits[c])) { lastPerfect = c; break; }
+    c = addDaysKey(c, -1);
+  }
+
+  if (!lastPerfect) {
+    // Nu avem nicio zi perfectă în istoric — păstrează streak-ul existent doar dacă > 0
+    // (poate user-ul are streak de la habits viitoare sau date corupte)
+    return { streak: state.system.perfectStreak || 0, lastPerfect: state.system.lastPerfectDate };
+  }
+
+  // Numără zile consecutive perfecte mergând înapoi de la lastPerfect
+  let streak = 0;
+  let cursor = lastPerfect;
+  while (isPerfectDay(state.habits[cursor]) && streak < 10000) {
+    streak++;
+    cursor = addDaysKey(cursor, -1);
+  }
+
+  // Aplică pe stat — păstrăm maximul dintre salvat și recalculat (protejează shields)
+  const finalStreak = Math.max(streak, state.system.perfectStreak || 0);
+  state.system.perfectStreak = finalStreak;
+  if (!state.system.lastPerfectDate || state.system.lastPerfectDate < lastPerfect) {
+    state.system.lastPerfectDate = lastPerfect;
+  }
+  return { streak: finalStreak, lastPerfect };
+}
+
 // =================== STREAK ROLLOVER & SHIELDS ===================
 function processDailyRollover() {
   const today = todayKey();
@@ -764,8 +804,8 @@ function render() {
   else if (currentPage === 'workout') renderWorkout(el);
   else if (currentPage === 'progress') renderProgress(el);
   else if (currentPage === 'rank') renderRank(el);
+  else if (currentPage === 'achievements') renderAchievements(el);
   else if (currentPage === 'hunter') renderHunter(el);
-  else if (currentPage === 'achievements') renderAchievementsPage(el);
 
   window.scrollTo(0, 0);
 }
@@ -1475,6 +1515,68 @@ function renderRank(el) {
   `;
 }
 
+// =================== ACHIEVEMENTS / BADGES PAGE ===================
+function renderAchievements(el) {
+  const ach = window.ACHIEVEMENTS;
+  const all = Object.values(ach);
+  const unlocked = all.filter(a => state.achievements[a.id]).length;
+  const total = all.length;
+  const byRarity = { bronze: [], silver: [], gold: [], legendary: [] };
+  all.forEach(a => { if (byRarity[a.rarity]) byRarity[a.rarity].push(a); });
+
+  const rarityCount = (r) => byRarity[r].filter(a => state.achievements[a.id]).length;
+  const pct = total ? Math.round((unlocked / total) * 100) : 0;
+
+  const renderGroup = (rarity, label) => {
+    const items = byRarity[rarity];
+    if (!items.length) return '';
+    return `
+      <div class="ach-group">
+        <div class="ach-group-header">
+          <span class="ach-group-label rarity-${rarity}">${label}</span>
+          <span class="ach-group-count">${rarityCount(rarity)}/${items.length}</span>
+        </div>
+        <div class="achievement-grid">
+          ${items.map(a => {
+            const ul = !!state.achievements[a.id];
+            return `
+              <div class="achievement-card ${a.rarity} ${ul?'':'locked'}" onclick="onAchievementClick('${a.id}')">
+                <div class="achievement-icon">${a.icon}</div>
+                <div class="achievement-title">${a.title}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  };
+
+  el.innerHTML = `
+    <div class="section-title">Badges</div>
+
+    <div class="badges-hero">
+      <div class="badges-hero-num">${unlocked}<span style="font-size:32px; color: var(--text-tertiary);">/${total}</span></div>
+      <div class="badges-hero-label">ACHIEVEMENTS DEBLOCATE</div>
+      <div class="badges-progress-bar"><div class="badges-progress-fill" style="width:${pct}%"></div></div>
+      <div class="badges-rarity-row">
+        <div class="badges-rarity-stat"><span style="color:#cd7f32;">●</span> ${rarityCount('bronze')}<span style="color:var(--text-tertiary);">/${byRarity.bronze.length}</span></div>
+        <div class="badges-rarity-stat"><span style="color:#c0c0c0;">●</span> ${rarityCount('silver')}<span style="color:var(--text-tertiary);">/${byRarity.silver.length}</span></div>
+        <div class="badges-rarity-stat"><span style="color:var(--gold);">●</span> ${rarityCount('gold')}<span style="color:var(--text-tertiary);">/${byRarity.gold.length}</span></div>
+        <div class="badges-rarity-stat"><span style="color:var(--rarity-legendary);">●</span> ${rarityCount('legendary')}<span style="color:var(--text-tertiary);">/${byRarity.legendary.length}</span></div>
+      </div>
+    </div>
+
+    ${renderGroup('legendary', '◆ LEGENDARY')}
+    ${renderGroup('gold', '◆ GOLD')}
+    ${renderGroup('silver', '◆ SILVER')}
+    ${renderGroup('bronze', '◆ BRONZE')}
+
+    <div style="text-align:center; padding: 16px 0; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">
+      Apasă pe orice badge pentru detalii
+    </div>
+  `;
+}
+
 // =================== HUNTER PAGE ===================
 function renderHunter(el) {
   const p = state.profile;
@@ -1515,6 +1617,14 @@ function renderHunter(el) {
     </div>
     <div class="info-box" style="font-size: 11px;">
       <strong>STR</strong> antrenamente • <strong>END</strong> Wim Hof + cold + post • <strong>MND</strong> lectură + meditație + recunoștință • <strong>WIL</strong> misiuni bonus + disciplină
+    </div>
+
+    <div class="card" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; margin-top: 14px;" onclick="navigate('achievements')">
+      <div>
+        <div class="section-subtitle" style="margin-bottom:4px;">🏆 Badges</div>
+        <div style="font-family: 'Bebas Neue', sans-serif; font-size: 22px; color: var(--gold); letter-spacing:1.5px;">${Object.keys(state.achievements).length} / ${Object.keys(ach).length} <span style="font-size:11px; color:var(--text-tertiary); letter-spacing:0;">deblocate</span></div>
+      </div>
+      <svg fill="none" stroke="var(--accent)" viewBox="0 0 24 24" width="22" height="22" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
     </div>
 
     <div class="section-title" style="margin-top: 22px;">Profil</div>
@@ -1563,6 +1673,7 @@ function renderHunter(el) {
 
     <div class="card">
       <div class="section-subtitle">Date</div>
+      <button class="export-btn" onclick="manualRecomputeStreak()">🔥 Recalculează Streak din istoric</button>
       <button class="export-btn" onclick="exportData()">📤 Export backup JSON</button>
       <button class="export-btn" onclick="document.getElementById('import-input').click()">📥 Import backup</button>
       <input type="file" id="import-input" accept=".json,application/json" style="display:none" onchange="importData(event)">
@@ -1570,24 +1681,6 @@ function renderHunter(el) {
     </div>
 
     <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v3.0 • SISTEM ACTIV</div>
-  `;
-}
-
-function renderAchievementsPage(el) {
-  const ach = window.ACHIEVEMENTS;
-  el.innerHTML = `
-    <div class="section-title">Badges (${Object.keys(state.achievements).length}/${Object.keys(ach).length})</div>
-    <div class="achievement-grid">
-      ${Object.values(ach).map(a => {
-        const unlocked = !!state.achievements[a.id];
-        return `
-          <div class="achievement-card ${a.rarity} ${unlocked?'':'locked'}" onclick="onAchievementClick('${a.id}')">
-            <div class="achievement-icon">${a.icon}</div>
-            <div class="achievement-title">${a.title}</div>
-          </div>
-        `;
-      }).join('')}
-    </div>
   `;
 }
 
@@ -1699,10 +1792,45 @@ function importData(e) {
       const d = JSON.parse(ev.target.result);
       if (!confirm('Se vor suprascrie TOATE datele. Ești sigur?')) return;
       state = { ...state, ...d, profile: { ...state.profile, ...d.profile } };
-      saveState(); render(); showToast('✅ Date importate');
+      // Reseteaza flag-ul de migrare ca să recalculeze streak-ul pe noile date
+      state.system.streakRecomputedV1 = false;
+      saveState();
+      // Aplică migrarea imediat — recalculează streak din habits importate
+      recomputeStreakFromHabits();
+      state.system.streakRecomputedV1 = true;
+      processDailyRollover();
+      saveState();
+      render();
+      showToast(`✅ Date importate — streak: ${state.system.perfectStreak} zile`);
     } catch { showToast('❌ Fișier invalid'); }
   };
   r.readAsText(f);
+}
+
+// Recalculare manuală — accesibilă din butonul Hunter
+function manualRecomputeStreak() {
+  const oldStreak = state.system.perfectStreak;
+  // Forțăm recalculare brută (fără max cu salvat) ca să corecteze inflații accidentale
+  const today = todayKey();
+  let lastPerfect = null;
+  let c = today;
+  for (let i = 0; i < 3650; i++) {
+    if (isPerfectDay(state.habits[c])) { lastPerfect = c; break; }
+    c = addDaysKey(c, -1);
+  }
+  let streak = 0;
+  if (lastPerfect) {
+    let cursor = lastPerfect;
+    while (isPerfectDay(state.habits[cursor]) && streak < 10000) {
+      streak++;
+      cursor = addDaysKey(cursor, -1);
+    }
+  }
+  state.system.perfectStreak = streak;
+  state.system.lastPerfectDate = lastPerfect;
+  saveState();
+  render();
+  showToast(`🔥 Streak recalculat: ${oldStreak} → ${streak} zile`);
 }
 
 function resetAllData() {
@@ -1793,6 +1921,12 @@ function updateTimerDisplay() {
 
 // =================== INIT ===================
 loadState();
+// Migrare unică: recalculează streak-ul din habits pentru date vechi importate
+if (!state.system.streakRecomputedV1) {
+  recomputeStreakFromHabits();
+  state.system.streakRecomputedV1 = true;
+  saveState();
+}
 processDailyRollover();
 ensureBonusForToday();
 ensureBossForWeek();

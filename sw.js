@@ -1,4 +1,4 @@
-const CACHE_NAME = 'solo-hunter-v4';
+const CACHE_NAME = 'solo-hunter-v5';
 const ASSETS = [
   './',
   './index.html',
