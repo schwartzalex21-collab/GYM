@@ -113,7 +113,6 @@ const BONUS_MISSION_POOL = [
   { id: 'burpees_50',      title: '50 Burpees',              desc: '50 burpees pe parcursul zilei. Sus, jos, săritură.',                                xp: 60,  rarity: 'rare',      stat: 'STR' },
   { id: 'run_5k',          title: 'Aleargă 5 km',            desc: 'Aleargă 5 km continuu sau cu pauze scurte.',                                        xp: 70,  rarity: 'rare',      stat: 'STR' },
   { id: 'pullups_50',      title: '50 Tracțiuni Total',      desc: 'Acumulează 50 de tracțiuni pe parcursul zilei.',                                    xp: 70,  rarity: 'rare',      stat: 'STR' },
-  { id: 'swim_30',         title: 'Înot 30 min',             desc: '30 minute de înot continuu.',                                                       xp: 60,  rarity: 'rare',      stat: 'STR' },
   { id: 'handstand_3',     title: 'Handstand 3 min total',   desc: 'Acumulează 3 minute de handstand (lângă perete dacă e nevoie).',                    xp: 60,  rarity: 'rare',      stat: 'STR' },
   { id: 'workout_double',  title: 'Antrenament Dublu',       desc: 'Efectuează un antrenament complet de forță (sală/acasă) ȘI o sesiune separată de minim 30 min cardio în aceeași zi.', xp: 120, rarity: 'legendary', stat: 'STR' },
   { id: 'hill_sprints',    title: '10 Hill Sprints',         desc: '10 sprinturi pe deal sau scări, până la pragul anaerob.',                           xp: 100, rarity: 'legendary', stat: 'STR' },
@@ -123,7 +122,6 @@ const BONUS_MISSION_POOL = [
   { id: 'water_3l',        title: 'Hidratare 3L',            desc: 'Bea minim 3 litri de apă astăzi.',                                                 xp: 25,  rarity: 'common',    stat: 'END' },
   { id: 'sleep_8h',        title: 'Somn 8h+',                desc: 'Dormi minim 8 ore noaptea asta. Fără ecran cu 30 min înainte.',                     xp: 30,  rarity: 'common',    stat: 'END' },
   { id: 'breathing_box',   title: 'Respirație Box 10 min',   desc: '10 min respirație pătrată: 4-4-4-4. Calm și recuperare.',                           xp: 30,  rarity: 'common',    stat: 'END' },
-  { id: 'sauna_20',        title: 'Saună 20 min',            desc: '20 minute în saună, fără telefon. Hidratează după.',                                xp: 30,  rarity: 'common',    stat: 'END' },
   { id: 'nature_2h',       title: '2h în Natură',            desc: '2 ore în natură (parc, pădure, munte). Fără ecran.',                                xp: 35,  rarity: 'common',    stat: 'END' },
   { id: 'cold_shower',     title: 'Duș Rece',                desc: 'Duș rece minim 3 minute, fără pauze.',                                              xp: 40,  rarity: 'rare',      stat: 'END' },
   { id: 'fast_16h',        title: 'Post 16h',                desc: 'Post intermitent 16:8. Doar apă în fereastra de post.',                             xp: 70,  rarity: 'rare',      stat: 'END' },
@@ -132,7 +130,6 @@ const BONUS_MISSION_POOL = [
   { id: 'no_caffeine',     title: '24h Fără Cofeină',        desc: 'Zero cafea, energizante, ceai negru pentru 24 ore.',                                xp: 60,  rarity: 'rare',      stat: 'END' },
   { id: 'workout_fasted',  title: 'Antrenament în Post',     desc: 'Antrenament complet pe stomacul gol (după minim 12h post).',                        xp: 75,  rarity: 'rare',      stat: 'END' },
   { id: 'zero_processed',  title: 'Zero Procesat',           desc: 'Toată ziua fără mâncare procesată. Doar real food.',                                xp: 65,  rarity: 'rare',      stat: 'END' },
-  { id: 'ice_bath',        title: 'Baie cu Gheață',          desc: '5 minute în apă cu gheață. Sub 5°C. Doar dacă ești pregătit.',                      xp: 130, rarity: 'legendary', stat: 'END' },
   { id: 'fast_24h',        title: 'Post 24h',                desc: 'Post complet 24 ore. Doar apă, ceai neîndulcit, electroliți.',                      xp: 110, rarity: 'legendary', stat: 'END' },
 
   // ─── MND · mental & spiritual ───
@@ -158,12 +155,9 @@ const BONUS_MISSION_POOL = [
   { id: 'book_finish',     title: 'Termină o Carte',         desc: 'Termină o carte pe care o citeai. Marchează finalul.',                              xp: 130, rarity: 'legendary', stat: 'MND' },
 
   // ─── WIL · voință & disciplină ───
-  { id: 'no_phone_2h',     title: 'No Phone 2h',             desc: '2 ore consecutive fără telefon. Pune-l în altă cameră.',                            xp: 50,  rarity: 'rare',      stat: 'WIL' },
   { id: 'no_sugar',        title: 'Zero Zahăr',              desc: 'Toată ziua fără zahăr adăugat. Verifică etichetele.',                               xp: 50,  rarity: 'rare',      stat: 'WIL' },
   { id: 'cold_morning',    title: 'Duș Rece la Trezire',     desc: 'Primul lucru după trezire: duș rece. Fără excuze.',                                 xp: 35,  rarity: 'common',    stat: 'WIL' },
   { id: 'early_sleep',     title: 'Culcat înainte de 23:30', desc: 'În pat, telefon deoparte, înainte de 23:30.',                                       xp: 30,  rarity: 'common',    stat: 'WIL' },
-  { id: 'screen_free_am',  title: 'Prima Oră fără Ecran',    desc: 'Prima oră după trezire — zero ecrane. Doar tu și ziua.',                            xp: 35,  rarity: 'common',    stat: 'WIL' },
-  { id: 'screen_free_pm',  title: '2h fără Ecran Seara',     desc: 'Ultimele 2 ore înainte de culcare — zero ecrane.',                                  xp: 35,  rarity: 'common',    stat: 'WIL' },
   { id: 'no_food_8pm',     title: 'Fără Mâncare după 20:00', desc: 'După ora 20:00, doar apă. Lasă digestia să se odihnească.',                         xp: 30,  rarity: 'common',    stat: 'WIL' },
   { id: 'say_no',          title: 'Spune NU la o Distrageri', desc: 'Refuză activ ceva care îți consumă timpul fără să-ți aducă valoare.',              xp: 30,  rarity: 'common',    stat: 'WIL' },
   { id: 'silent_hour',     title: '1h Liniște Absolută',     desc: '1 oră în liniște completă. Fără muzică, fără voci, fără ecrane.',                   xp: 35,  rarity: 'common',    stat: 'WIL' },

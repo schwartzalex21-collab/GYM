@@ -291,11 +291,11 @@ function checkPerfectDay(date) {
   addXP(50, 'Misiune Completă Zilnică!');
 
   if (state.system.lastPerfectDate === addDaysKey(date, -1)) {
+    // Chain consecutiv — continuă streak-ul
     state.system.perfectStreak++;
-  } else if (!state.system.lastPerfectDate) {
-    state.system.perfectStreak = 1;
   } else {
-    state.system.perfectStreak = Math.max(state.system.perfectStreak, 1);
+    // Prima zi sau chain rupt — pornește streak nou de la 1
+    state.system.perfectStreak = 1;
   }
   state.system.lastPerfectDate = date;
 
@@ -317,7 +317,7 @@ function checkPerfectDay(date) {
 // Reconstruiește streak-ul din istoricul real al habits-urilor.
 // Necesar la import (date vechi) și la migrare prima dată cu noul sistem.
 function isPerfectDay(h) {
-  return !!(h && h.wim_hof && h.prayer_am && h.affirmations && h.prayer_pm && h.workout_xp_claimed);
+  return !!(h && h.wim_hof && h.prayer_am && h.affirmations && h.prayer_pm && h.workout_xp_claimed && h.cold_shower);
 }
 
 function recomputeStreakFromHabits() {
