@@ -331,9 +331,10 @@ function recomputeStreakFromHabits() {
   }
 
   if (!lastPerfect) {
-    // Nu avem nicio zi perfectă în istoric — păstrează streak-ul existent doar dacă > 0
-    // (poate user-ul are streak de la habits viitoare sau date corupte)
-    return { streak: state.system.perfectStreak || 0, lastPerfect: state.system.lastPerfectDate };
+    // Nicio zi perfectă în istoric — streak-ul real este 0
+    state.system.perfectStreak = 0;
+    state.system.lastPerfectDate = null;
+    return { streak: 0, lastPerfect: null };
   }
 
   // Numără zile consecutive perfecte mergând înapoi de la lastPerfect
@@ -344,13 +345,10 @@ function recomputeStreakFromHabits() {
     cursor = addDaysKey(cursor, -1);
   }
 
-  // Aplică pe stat — păstrăm maximul dintre salvat și recalculat (protejează shields)
-  const finalStreak = Math.max(streak, state.system.perfectStreak || 0);
-  state.system.perfectStreak = finalStreak;
-  if (!state.system.lastPerfectDate || state.system.lastPerfectDate < lastPerfect) {
-    state.system.lastPerfectDate = lastPerfect;
-  }
-  return { streak: finalStreak, lastPerfect };
+  // PURE recompute — sursa adevărului e istoricul habits, nu valoarea salvată
+  state.system.perfectStreak = streak;
+  state.system.lastPerfectDate = lastPerfect;
+  return { streak, lastPerfect };
 }
 
 // =================== STREAK ROLLOVER & SHIELDS ===================
