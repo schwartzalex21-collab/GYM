@@ -50,6 +50,12 @@
   /* Safe area */
   --safe-top: env(safe-area-inset-top);
   --safe-bottom: env(safe-area-inset-bottom);
+
+  /* Timing functions — feel-good easing */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --ease-in-out-circ: cubic-bezier(0.85, 0, 0.15, 1);
 }
 
 /* ============ RESET ============ */
@@ -2265,4 +2271,204 @@ input[type="number"], input[type="text"], textarea {
   font-family: 'Bebas Neue', sans-serif;
   font-size: 24px;
   color: var(--accent);
+}
+
+/* ============ V9 — ALIVE ANIMATIONS ============ */
+
+/* === KEYFRAMES NOI === */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes subtleFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes borderEnergyFlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@keyframes dangerShake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
+  20%, 40%, 60%, 80% { transform: translateX(3px); }
+}
+
+@keyframes statPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.28); text-shadow: 0 0 18px var(--success), 0 0 8px var(--success); }
+  100% { transform: scale(1); }
+}
+
+@keyframes countdownPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.06); opacity: 0.85; }
+}
+
+@keyframes checkDraw {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes completionFlash {
+  0% { background-color: transparent; }
+  35% { background-color: rgba(93, 211, 158, 0.18); border-color: var(--success); }
+  100% { background-color: transparent; }
+}
+
+@keyframes streakPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.4); color: var(--gold); text-shadow: 0 0 22px var(--gold-glow), 0 0 8px var(--gold); }
+  100% { transform: scale(1); }
+}
+
+@keyframes shimmerText {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* === STAGGER UTILITY === */
+.stagger-children > * {
+  opacity: 0;
+  animation: fadeSlideUp 0.42s var(--ease-out-expo) forwards;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 55ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 110ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 165ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 220ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 275ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 330ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 385ms; }
+.stagger-children > *:nth-child(9) { animation-delay: 440ms; }
+.stagger-children > *:nth-child(10) { animation-delay: 495ms; }
+.stagger-children > *:nth-child(11) { animation-delay: 550ms; }
+.stagger-children > *:nth-child(12) { animation-delay: 605ms; }
+
+/* === VIGNETTE — "dungeon view" === */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.45) 100%);
+}
+.app { position: relative; z-index: 2; }
+.tabbar, .timer-fab, .modal-overlay, .timer-modal, .toast-container { z-index: 100; }
+
+/* === ACTIVE STATE pe carduri + butoane === */
+.day-btn, .quest-item, .bonus-mission-card, .achievement-card,
+.history-day, .progress-exercise, .rank-row, .hunter-stat, .card {
+  transition: transform 0.16s var(--ease-out-expo), border-color 0.22s, box-shadow 0.22s, background 0.22s;
+}
+.day-btn:active, .quest-item:active, .bonus-mission-card:active,
+.history-day:active, .progress-exercise:active, .hunter-stat:active,
+.card[onclick]:active {
+  transform: scale(0.97);
+  box-shadow: 0 0 18px var(--accent-glow);
+}
+
+/* === BORDER ENERGY FLOW pe carduri importante === */
+.greeting-card::before,
+.glance-widget::before,
+.boss-banner::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--gold), var(--accent), transparent);
+  background-size: 200% 100%;
+  animation: borderEnergyFlow 3.5s linear infinite;
+  pointer-events: none;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+}
+.boss-banner::after {
+  background: linear-gradient(90deg, transparent, var(--danger), #ff6666, var(--danger), transparent);
+  background-size: 200% 100%;
+  animation: borderEnergyFlow 2s linear infinite;
+}
+
+/* === RANK BADGES FLOATING === */
+.player-rank-badge, .rank-hero-badge {
+  animation: subtleFloat 4.5s ease-in-out infinite;
+}
+
+/* === QUEST CHECK ANIMATION === */
+.quest-item.done .quest-checkbox svg path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+  animation: checkDraw 0.42s var(--ease-out-expo);
+}
+.bonus-mission-card.done .quest-checkbox svg path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 0;
+  animation: checkDraw 0.42s var(--ease-out-expo);
+}
+
+/* === COMPLETION FLASH === */
+.quest-item.just-completed,
+.bonus-mission-card.just-completed {
+  animation: completionFlash 0.85s ease-out;
+}
+
+/* === STREAK INCREMENT POP === */
+.streak-num.just-incremented,
+.glance-streak.just-incremented {
+  animation: streakPop 0.7s var(--ease-out-back);
+}
+
+/* === STAT BAR POP la stat-up === */
+.stat-value-big.just-leveled-up {
+  animation: statPop 0.6s var(--ease-out-back);
+}
+
+/* === COUNTDOWN TIMER STATES === */
+.timer-display.warning, .timer-ring-progress.warning {
+  animation: countdownPulse 0.7s ease-in-out infinite;
+}
+.timer-display.danger {
+  color: var(--danger);
+  animation: countdownPulse 0.4s ease-in-out infinite, dangerShake 0.32s ease-in-out infinite;
+}
+
+/* === RANK S+ SHIMMER TEXT === */
+.shimmer-gold {
+  background: linear-gradient(90deg,
+    var(--gold) 0%,
+    #fff5d0 25%,
+    var(--gold) 50%,
+    #fff5d0 75%,
+    var(--gold) 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmerText 3s linear infinite;
+}
+
+/* === DAY BUTTON STATES === */
+.day-btn.day-today {
+  border-color: var(--accent);
+  box-shadow: 0 0 14px var(--accent-glow);
+  animation: borderEnergyFlow 4s linear infinite;
+}
+
+/* === REDUCED MOTION RESPECT === */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.05s !important;
+  }
+  .stagger-children > * {
+    opacity: 1 !important;
+    animation: none !important;
+  }
+  body::after { display: none; }
 }

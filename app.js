@@ -132,7 +132,33 @@ function showToast(msg) {
   setTimeout(() => t.remove(), 3500);
 }
 
-function vibrate(p) { if (navigator.vibrate) navigator.vibrate(p); }
+// Haptic feedback — pattern-uri numite. iOS fail silent (nu suportă vibrate).
+const HAPTIC_PATTERNS = {
+  tap:       [8],
+  selection: [4],
+  success:   [10, 40, 10],
+  warning:   [30, 30, 30],
+  error:     [50, 30, 80],
+  heavy:     [60],
+  levelUp:   [10, 30, 10, 30, 50, 50, 80],
+  bossSlay:  [80, 60, 120]
+};
+function haptic(type) {
+  if (!navigator.vibrate) return;
+  const pattern = HAPTIC_PATTERNS[type] || HAPTIC_PATTERNS.tap;
+  navigator.vibrate(pattern);
+}
+// Backward compat — vibrate(num/array) still works
+function vibrate(p) {
+  if (!navigator.vibrate) return;
+  if (typeof p === 'string') { haptic(p); return; }
+  navigator.vibrate(p);
+}
+
+// Transient animation flags (cleared after one render)
+let _justCompletedQuestId = null;
+let _justCompletedBonusId = null;
+let _streakJustIncremented = false;
 
 // =================== QUESTS (daily) ===================
 const QUESTS = {
@@ -263,17 +289,19 @@ function checkAllStats() {
 
 // =================== HABITS (main daily quests) ===================
 function toggleHabit(date, habitId) {
-  vibrate(10);
   if (!state.habits[date]) state.habits[date] = {};
   const isDone = !state.habits[date][habitId];
   state.habits[date][habitId] = isDone;
 
   const q = QUESTS[habitId];
   if (isDone) {
+    haptic('success');
+    _justCompletedQuestId = habitId;
     addXP(q.xp, q.name, q.stat);
     unlockAchievement('first_blood');
     checkPerfectDay(date);
   } else {
+    haptic('tap');
     state.system.xp = Math.max(0, state.system.xp - q.xp);
     saveState();
     updateGlobalXPBar();
@@ -297,6 +325,8 @@ function checkPerfectDay(date) {
     // Prima zi sau chain rupt — pornește streak nou de la 1
     state.system.perfectStreak = 1;
   }
+  _streakJustIncremented = true;
+  setTimeout(() => haptic('levelUp'), 400);
   state.system.lastPerfectDate = date;
 
   const milestones = { 7: 150, 30: 500, 60: 1000, 90: 2000, 120: 3000, 365: 10000 };
@@ -437,10 +467,13 @@ function ensureBonusForToday() {
 }
 
 function toggleBonusMission(id) {
-  vibrate(15);
   const m = state.bonusMissions.missions.find(x => x.id === id);
   if (!m || m.completed) return;
   m.completed = true;
+  _justCompletedBonusId = id;
+  if (m.rarity === 'legendary') haptic('levelUp');
+  else if (m.rarity === 'rare') haptic('heavy');
+  else haptic('success');
   state.system.bonusCompletedTotal = (state.system.bonusCompletedTotal || 0) + 1;
   addXP(m.xp, `Bonus: ${getBonusMeta(id).title}`, m.stat);
   if (m.rarity === 'rare') {
@@ -503,8 +536,9 @@ function ensureBossForWeek() {
 }
 
 function completeBoss() {
-  vibrate([50, 30, 50]);
   if (state.boss.completed) return;
+  haptic('bossSlay');
+  setTimeout(() => haptic('levelUp'), 600);
   state.boss.completed = true;
   state.system.bossesCompletedTotal = (state.system.bossesCompletedTotal || 0) + 1;
   addXP(250, 'BOSS SLAYER!', 'WIL');
@@ -553,7 +587,7 @@ function checkRankAchievements(level) {
 function showAchievementModal(id) {
   const a = window.ACHIEVEMENTS[id];
   if (!a) return;
-  vibrate([30, 30, 80]);
+  haptic(a.rarity === 'legendary' ? 'levelUp' : 'heavy');
   const modal = document.getElementById('achievement-modal');
   if (!modal) return;
   const content = modal.querySelector('.achievement-modal-content');
@@ -726,7 +760,7 @@ function updateGlobalXPBar() {
 
 // =================== MODALS: Level Up ===================
 function showLevelUpModal(newLevel) {
-  vibrate([60, 40, 60]);
+  haptic('levelUp');
   const modal = document.getElementById('levelup-modal');
   if (!modal) return;
   const rank = getRank(newLevel);
@@ -781,6 +815,7 @@ function completeBonusFromModal() {
 
 // =================== NAVIGATION ===================
 function navigate(page) {
+  if (currentPage !== page) haptic('selection');
   currentPage = page;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.page === page));
   render();
@@ -826,7 +861,7 @@ function renderHome(el) {
     <div class="glance-widget">
       <div class="glance-row">
         <div>
-          <div class="glance-streak">${streak}🔥</div>
+          <div class="glance-streak${_streakJustIncremented ? ' just-incremented' : ''}">${streak}🔥</div>
           <div class="glance-streak-label">Streak Zile</div>
         </div>
         <div class="glance-missions">
@@ -843,7 +878,7 @@ function renderHome(el) {
   const shieldsHtml = `
     <div class="streak-shield-row">
       <div class="streak-flame ${streak >= 30 ? 'legend' : streak >= 7 ? 'fire' : ''}">
-        <div class="streak-num">${streak}</div>
+        <div class="streak-num${_streakJustIncremented ? ' just-incremented' : ''}">${streak}</div>
         <div>
           <div class="streak-label">Streak</div>
           <div style="font-size:10px; color: var(--text-tertiary); margin-top:2px;">${streak < 7 ? 'Continuă! Sub 7 zile.' : streak >= 30 ? '⚡ MONARH AL UMBREI' : 'În flăcări!'}</div>
@@ -898,8 +933,9 @@ function renderHome(el) {
         </div>
       `;
     }
+    const justClass = _justCompletedQuestId === q.id ? ' just-completed' : '';
     return `
-      <div class="quest-item ${done ? 'done' : ''}" onclick="openQuestModal('${q.id}')">
+      <div class="quest-item ${done ? 'done' : ''}${justClass}" onclick="openQuestModal('${q.id}')">
         <div class="quest-icon">${q.svg}</div>
         <div class="quest-info">
           <div class="quest-name">${q.name}</div>
@@ -917,8 +953,9 @@ function renderHome(el) {
   const bonusTotal = state.bonusMissions.missions.length;
   const bonusHtml = state.bonusMissions.missions.map(m => {
     const meta = getBonusMeta(m.id);
+    const justClass = _justCompletedBonusId === m.id ? ' just-completed' : '';
     return `
-      <div class="bonus-mission-card rarity-${m.rarity} ${m.completed ? 'done' : ''}" onclick="openBonusModal('${m.id}')">
+      <div class="bonus-mission-card rarity-${m.rarity} ${m.completed ? 'done' : ''}${justClass}" onclick="openBonusModal('${m.id}')">
         <div class="bonus-icon">${m.rarity === 'legendary' ? '💎' : m.rarity === 'rare' ? '⚜' : '◆'}</div>
         <div class="bonus-info">
           <div class="bonus-title">${meta.title}</div>
@@ -936,6 +973,7 @@ function renderHome(el) {
   }).join('');
 
   el.innerHTML = `
+    <div class="stagger-children">
     ${glance}
 
     <div class="greeting-card">
@@ -992,10 +1030,16 @@ function renderHome(el) {
         `;
       }).join('')}
     </div>
+    </div>
   `;
 
   // Boss countdown ticker
   if (bossHtml) startBossCountdown();
+
+  // Clear transient animation flags after render
+  _justCompletedQuestId = null;
+  _justCompletedBonusId = null;
+  _streakJustIncremented = false;
 }
 
 // =================== TOMORROW PREVIEW ===================
@@ -1272,7 +1316,7 @@ function setUnit(exId, unit) {
 }
 
 function addSet(exId) {
-  vibrate(10);
+  haptic('tap');
   const exData = ensureExercise(exId);
   const meta = getExerciseMeta(exId);
   const lastUnit = exData.sets[exData.sets.length-1]?.unit || meta.defaultUnit || 'total';
@@ -1286,7 +1330,7 @@ function addSet(exId) {
 }
 
 function deleteSet(exId, sIdx) {
-  vibrate(10);
+  haptic('warning');
   const exData = ensureExercise(exId);
   exData.sets.splice(sIdx, 1);
   saveState();
@@ -1311,7 +1355,8 @@ function copyLastSets(exId) {
 }
 
 function finishWorkout() {
-  vibrate([20, 50, 20]);
+  haptic('success');
+  setTimeout(() => haptic('levelUp'), 250);
   const today = todayKey();
   if (!state.habits[today]) state.habits[today] = {};
   if (!state.habits[today].workout_xp_claimed) {
@@ -1341,7 +1386,7 @@ function closeCustomExerciseModal() {
   document.getElementById('custom-ex-name').value = '';
 }
 function addCustomExercise() {
-  vibrate(12);
+  haptic('tap');
   const name = document.getElementById('custom-ex-name').value.trim();
   if (!name) { showToast('❌ Numele este obligatoriu'); return; }
   let id = Object.keys(state.customExercises).find(k => state.customExercises[k].name.toLowerCase() === name.toLowerCase());
@@ -1763,7 +1808,7 @@ function renderHunter(el) {
       <button class="danger-btn" onclick="resetAllData()">🗑 Șterge TOATE datele</button>
     </div>
 
-    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v8.0 • SISTEM ACTIV</div>
+    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v9.0 • SISTEM ACTIV</div>
   `;
 }
 
@@ -1782,7 +1827,7 @@ function onAchievementClick(id) {
 }
 
 function showAchievementInfoModal(a, dateStr) {
-  vibrate(15);
+  haptic('tap');
   const modal = document.getElementById('achievement-modal');
   if (!modal) return;
   const content = modal.querySelector('.achievement-modal-content');
@@ -1967,7 +2012,8 @@ function pauseTimer() { timerRunning = false; clearInterval(timerInterval); docu
 function resetTimer() { pauseTimer(); timerRemaining = timerSeconds; updateTimerDisplay(); }
 function timerDone() {
   pauseTimer();
-  vibrate([300,150,300,150,500]);
+  haptic('bossSlay');
+  setTimeout(() => haptic('success'), 400);
   beep();
   document.getElementById('timer-display').classList.add('done');
   document.querySelector('.timer-ring-progress').classList.add('done');
