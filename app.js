@@ -963,6 +963,8 @@ function renderHome(el) {
       ${bonusHtml}
     </div>
 
+    ${renderTomorrowPreview()}
+
     ${(todayWorkout && !isWorkoutFinished) ? `
       <div class="card" style="border-color: var(--accent); cursor: pointer; background: linear-gradient(135deg, var(--bg-surface), var(--accent-soft));" onclick="openWorkout('${today}', '${todayWorkout.dayKey}')">
         <div class="section-subtitle" style="margin-bottom:4px;">⚡ Antrenament în Curs</div>
@@ -994,6 +996,89 @@ function renderHome(el) {
 
   // Boss countdown ticker
   if (bossHtml) startBossCountdown();
+}
+
+// =================== TOMORROW PREVIEW ===================
+let tomorrowExpanded = false;
+
+function toggleTomorrowPreview() {
+  tomorrowExpanded = !tomorrowExpanded;
+  const el = document.getElementById('tomorrow-preview-body');
+  const arrow = document.getElementById('tomorrow-preview-arrow');
+  if (el) el.style.display = tomorrowExpanded ? 'block' : 'none';
+  if (arrow) arrow.style.transform = tomorrowExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+}
+
+function renderTomorrowPreview() {
+  const tomorrow = addDaysKey(todayKey(), 1);
+  const missions = generateBonusMissions(tomorrow);
+  const now = new Date();
+  const isEvening = now.getHours() >= 18; // după 18:00 evidențiat
+  const wsToday = weekStartKey(todayKey());
+  const wsTomorrow = weekStartKey(tomorrow);
+  // Boss preview: dacă mâine cade în săptămâna curentă și data bossului e mâine
+  const boss = (state.boss.weekStart === wsToday && wsTomorrow === wsToday && state.boss.date === tomorrow) ? getBossMeta() : null;
+  // Sau dacă mâine începe o săptămână nouă, calculăm bossul săptămânii viitoare pentru preview
+  let nextWeekBossPreview = null;
+  if (wsTomorrow !== wsToday) {
+    const seed = wsTomorrow.split('-').reduce((a, b) => a * 17 + Number(b), 11);
+    const rng = mulberry32(seed);
+    const dayOffset = 3 + Math.floor(rng() * 3);
+    const bossDate = addDaysKey(wsTomorrow, dayOffset);
+    if (bossDate === tomorrow) {
+      const m = window.BOSS_MISSIONS[Math.floor(rng() * window.BOSS_MISSIONS.length)];
+      nextWeekBossPreview = m;
+    }
+  }
+  const bossMission = boss || nextWeekBossPreview;
+
+  const missionList = missions.map(m => {
+    const meta = window.BONUS_MISSION_POOL.find(x => x.id === m.id) || { title: m.id, desc: '' };
+    return `
+      <div class="bonus-mission-card rarity-${m.rarity}" style="cursor: default; opacity: 0.85;">
+        <div class="bonus-icon">${m.rarity === 'legendary' ? '💎' : m.rarity === 'rare' ? '⚜' : '◆'}</div>
+        <div class="bonus-info">
+          <div class="bonus-title">${meta.title}</div>
+          <div class="bonus-meta">
+            <span class="rarity-badge ${m.rarity}">${m.rarity}</span>
+            <span class="bonus-xp">+${m.xp} XP</span>
+            <span>• ${m.stat}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const bossHtml = bossMission ? `
+    <div style="background: linear-gradient(135deg, rgba(255,58,58,0.05), rgba(212,168,67,0.04)); border: 1.5px solid var(--danger); border-radius: 10px; padding: 12px; margin-bottom: 10px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <div style="font-family: 'Bebas Neue', sans-serif; font-size: 12px; letter-spacing: 2px; color: var(--danger);">⚠ BOSS DAY MÂINE</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--gold);">+250 XP</div>
+      </div>
+      <div style="font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: var(--text-primary); letter-spacing: 1px; margin-bottom: 4px;">${bossMission.title}</div>
+      <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">${bossMission.desc}</div>
+    </div>
+  ` : '';
+
+  return `
+    <div class="card" style="background: ${isEvening ? 'linear-gradient(135deg, var(--bg-surface), rgba(212, 168, 67, 0.06))' : 'var(--bg-surface)'}; border-color: ${isEvening ? 'var(--gold)' : 'var(--border-light)'}; margin-top: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleTomorrowPreview()">
+        <div>
+          <div class="section-subtitle" style="margin-bottom: 4px; color: ${isEvening ? 'var(--gold)' : 'var(--accent)'};">${isEvening ? '🌙 PLANIFICĂ MÂINE' : '👁 SNEAK PEEK — MÂINE'}</div>
+          <div style="font-size: 12px; color: var(--text-secondary);">${formatDate(tomorrow)}${bossMission ? ' • <span style="color: var(--danger); font-weight: 700;">BOSS DAY</span>' : ''}</div>
+        </div>
+        <svg id="tomorrow-preview-arrow" fill="none" stroke="${isEvening ? 'var(--gold)' : 'var(--accent)'}" viewBox="0 0 24 24" width="22" height="22" stroke-width="2" style="transition: transform 0.2s; transform: ${tomorrowExpanded ? 'rotate(90deg)' : 'rotate(0deg)'};"><path d="M9 5l7 7-7 7"/></svg>
+      </div>
+      <div id="tomorrow-preview-body" style="display: ${tomorrowExpanded ? 'block' : 'none'}; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-faint);">
+        ${bossHtml}
+        <div style="font-size: 10px; color: var(--text-tertiary); letter-spacing: 1.5px; text-transform: uppercase; font-weight: 700; margin-bottom: 8px;">Misiuni Bonus</div>
+        ${missionList}
+        <div style="font-size: 11px; color: var(--text-tertiary); margin-top: 12px; line-height: 1.5; font-style: italic;">
+          💡 Vezi din timp ce te așteaptă mâine. Pregătește-te din seara asta — alarme, lucruri pregătite, mental setat.
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 let bossCountdownInterval = null;
@@ -1678,7 +1763,7 @@ function renderHunter(el) {
       <button class="danger-btn" onclick="resetAllData()">🗑 Șterge TOATE datele</button>
     </div>
 
-    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v7.0 • SISTEM ACTIV</div>
+    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v8.0 • SISTEM ACTIV</div>
   `;
 }
 

@@ -157,7 +157,7 @@ const BONUS_MISSION_POOL = [
   // ─── WIL · voință & disciplină ───
   { id: 'no_sugar',        title: 'Zero Zahăr',              desc: 'Toată ziua fără zahăr adăugat. Verifică etichetele.',                               xp: 50,  rarity: 'rare',      stat: 'WIL' },
   { id: 'cold_morning',    title: 'Duș Rece la Trezire',     desc: 'Primul lucru după trezire: duș rece. Fără excuze.',                                 xp: 35,  rarity: 'common',    stat: 'WIL' },
-  { id: 'early_sleep',     title: 'Culcat înainte de 23:30', desc: 'În pat, telefon deoparte, înainte de 23:30.',                                       xp: 30,  rarity: 'common',    stat: 'WIL' },
+  { id: 'evening_routine', title: 'Rutină de Seară 20 min',  desc: '20 min înainte de somn: spălare dinți, citire, hidratare, fără ecran. Decompresie.', xp: 30, rarity: 'common', stat: 'WIL' },
   { id: 'no_food_8pm',     title: 'Fără Mâncare după 20:00', desc: 'După ora 20:00, doar apă. Lasă digestia să se odihnească.',                         xp: 30,  rarity: 'common',    stat: 'WIL' },
   { id: 'say_no',          title: 'Spune NU la o Distrageri', desc: 'Refuză activ ceva care îți consumă timpul fără să-ți aducă valoare.',              xp: 30,  rarity: 'common',    stat: 'WIL' },
   { id: 'silent_hour',     title: '1h Liniște Absolută',     desc: '1 oră în liniște completă. Fără muzică, fără voci, fără ecrane.',                   xp: 35,  rarity: 'common',    stat: 'WIL' },
@@ -169,8 +169,8 @@ const BONUS_MISSION_POOL = [
   { id: 'no_negative_talk',title: 'Vorbire Pură 24h',        desc: 'Zero bârfă, zero negativitate verbală despre alții.',                               xp: 60,  rarity: 'rare',      stat: 'WIL' },
   { id: 'confront_call',   title: 'Confruntă un Apel Greu',  desc: 'Sună-l pe cel cu care ai amânat conversația. Astăzi.',                              xp: 80,  rarity: 'rare',      stat: 'WIL' },
   { id: 'no_social',       title: 'No Social Media 24h',     desc: 'Toată ziua fără rețele sociale. Dezinstalează aplicațiile dacă e nevoie.',          xp: 80,  rarity: 'legendary', stat: 'WIL' },
-  { id: 'wake_5am',        title: 'Trezire înainte de 5 AM', desc: 'Sari din pat înainte de 5 dimineața. Fără snooze.',                                 xp: 100, rarity: 'legendary', stat: 'WIL' },
-  { id: 'wake_4am',        title: 'Trezire înainte de 4 AM', desc: 'Sari din pat înainte de 4 dimineața. Monk mode.',                                   xp: 130, rarity: 'legendary', stat: 'WIL' },
+  { id: 'morning_30',      title: 'Dimineață Productivă',    desc: 'Înainte de 8 AM completează: 15 min citire + 15 min mișcare/stretching. Cap limpede.', xp: 90, rarity: 'legendary', stat: 'WIL' },
+  { id: 'workday_focus',   title: '4h Deep Work',            desc: '4 ore consecutive de muncă profundă, fără notificări/social/distrageri.',           xp: 110, rarity: 'legendary', stat: 'WIL' },
   { id: 'dopamine_detox',  title: 'Dopamine Detox 12h',      desc: '12h fără social, jocuri, pornografie, mâncare procesată, muzică. Doar real.',       xp: 120, rarity: 'legendary', stat: 'WIL' },
   { id: 'confront_fear',   title: 'Confruntă o Frică',       desc: 'Fă ceva specific astăzi care îți este frică să faci. Asumă riscul.',                xp: 130, rarity: 'legendary', stat: 'WIL' }
 ];
@@ -193,7 +193,7 @@ const BOSS_MISSIONS = [
   { id: 'boss_cold_5min',       title: 'Duș Rece 10 min',         desc: '10 minute consecutive de duș rece. Fără pauze.' },
   { id: 'boss_fast_18h',        title: 'Post 18h',                desc: 'Post intermitent 18 ore consecutive.' },
   { id: 'boss_fast_24h',        title: 'Post 24h Complet',        desc: 'Post complet 24 ore. Doar apă și electroliți.' },
-  { id: 'boss_wake_4am',        title: 'Trezire înainte de 4 AM', desc: 'Sari din pat înainte de 4 dimineața.' },
+  { id: 'boss_digital_sunset',  title: 'Digital Sunset 4h',       desc: 'Ultimele 4 ore înainte de somn — zero ecrane (telefon, TV, laptop). Doar carte, conversație, plimbare.' },
   { id: 'boss_meditation_30',   title: 'Meditație 30 min',        desc: 'Meditează 30 minute neîntrerupt. Doar respirația.' },
   { id: 'boss_meditation_hour', title: 'Meditație 1h',            desc: 'Meditație profundă o oră întreagă, fără mișcare.' },
   { id: 'boss_silence_4h',      title: '4h Liniște Completă',     desc: '4 ore în liniște absolută. Fără muzică, telefon, voce.' },
