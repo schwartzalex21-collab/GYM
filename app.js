@@ -82,12 +82,18 @@ function saveState() {
 // =================== SCHEMA MIGRATIONS ===================
 // Crește SCHEMA_VERSION și adaugă un bloc `if (from < N)` pentru fiecare schimbare
 // de structură a datelor, ca utilizatorii existenți să-și migreze localStorage-ul în siguranță.
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 function migrateState() {
   const from = state.version || 1;
   if (from >= SCHEMA_VERSION) return;
-  // from < 2: baseline (introducerea câmpului `version`) — nimic de transformat.
-  // Migrările viitoare, secvențial:  if (from < 3) { ...transformă... }
+  // from < 2: baseline (introducerea câmpului `version`).
+  // from < 3: streak devine reset real (nu decay ×0.7). Recalculează din istoric și
+  //           forțează reevaluarea rollover-ului, ca streak-urile rămase blocate (ex. 1
+  //           care nu mai cobora) să se corecteze imediat la încărcare.
+  if (from < 3) {
+    recomputeStreakFromHabits();
+    state.system.lastCheckDate = null;
+  }
   state.version = SCHEMA_VERSION;
   saveState();
 }
@@ -503,20 +509,22 @@ function processDailyRollover() {
 
   const last = state.system.lastPerfectDate;
   if (last && last !== today) {
-    // Count missed days between last perfect and yesterday
+    // Zile ratate între ultima zi perfectă și ieri
     const yesterday = addDaysKey(today, -1);
     if (last < yesterday) {
       let missed = 0;
       let cursor = addDaysKey(last, 1);
       while (cursor <= yesterday) { missed++; cursor = addDaysKey(cursor, 1); }
-      while (missed > 0 && state.system.perfectStreak > 0) {
+      // Fiecare zi ratată consumă un shield; când nu mai sunt, streak-ul se rupe (reset la 0)
+      while (missed > 0) {
         if (state.system.shields > 0) {
           state.system.shields--;
           unlockAchievement('untouchable');
+          missed--;
         } else {
-          state.system.perfectStreak = Math.round(state.system.perfectStreak * 0.7);
+          state.system.perfectStreak = 0;
+          break;
         }
-        missed--;
       }
     }
   }
@@ -853,14 +861,14 @@ function getExerciseMeta(exId) {
 }
 
 function computeTotalKg(set) {
-  const kg = parseFloat(set.kg) || 0;
+  const kg = parseFloat(String(set.kg).replace(',', '.')) || 0;
   if (set.unit === 'side') return state.settings.barWeight + kg * 2;
   if (set.unit === 'db') return kg * 2;
   return kg;
 }
 
 function displayKg(set) {
-  const kg = parseFloat(set.kg) || 0;
+  const kg = parseFloat(String(set.kg).replace(',', '.')) || 0;
   if (kg === 0) return '—';
   if (set.unit === 'side') return `${kg}×2 + ${state.settings.barWeight}`;
   if (set.unit === 'db') return `${kg} db`;
@@ -1414,7 +1422,7 @@ function renderSetRow(exId, sIdx, set) {
   return `
     <div class="set-row" data-sidx="${sIdx}">
       <div class="set-num">${sIdx+1}</div>
-      <input type="number" inputmode="decimal" step="0.5" class="set-input ${done?'done':''}" value="${set.kg||''}" placeholder="${gK||'0'}" onfocus="this.select()" enterkeyhint="next" onchange="updateSet('${exId}',${sIdx},'kg',this.value)">
+      <input type="text" inputmode="decimal" autocomplete="off" class="set-input ${done?'done':''}" value="${set.kg||''}" placeholder="${gK||'0'}" onfocus="this.select()" enterkeyhint="next" onchange="updateSet('${exId}',${sIdx},'kg',this.value)">
       <input type="number" inputmode="numeric" class="set-input ${done?'done':''}" value="${set.reps||''}" placeholder="${gR||'0'}" onfocus="this.select()" enterkeyhint="next" onchange="updateSet('${exId}',${sIdx},'reps',this.value)">
       <div class="set-vol">${vol||'—'}</div>
       <button class="set-delete" onclick="deleteSet('${exId}',${sIdx})" aria-label="Șterge set"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg></button>
@@ -1444,7 +1452,7 @@ function updateSet(exId, sIdx, field, value) {
     const meta = getExerciseMeta(exId);
     exData.sets[sIdx] = { kg:'', reps:'', unit: meta.defaultUnit || 'total' };
   }
-  exData.sets[sIdx][field] = value;
+  exData.sets[sIdx][field] = (field === 'kg' && typeof value === 'string') ? value.replace(',', '.') : value;
   saveState();
   const c = document.getElementById(`sets-${exId}`);
   if (c) {
@@ -1934,7 +1942,7 @@ function renderHunter(el) {
         <div class="form-group"><label class="form-label">Vârstă</label><input type="number" class="form-input" value="${p.age||''}" onchange="updateProfile('age',this.value)"></div>
         <div class="form-group"><label class="form-label">Înălțime (cm)</label><input type="number" class="form-input" value="${p.height||''}" onchange="updateProfile('height',this.value)"></div>
       </div>
-      <div class="form-group"><label class="form-label">Greutate (kg)</label><input type="number" step="0.1" class="form-input" value="${p.weight||''}" onchange="updateProfile('weight',this.value)"></div>
+      <div class="form-group"><label class="form-label">Greutate (kg)</label><input type="text" inputmode="decimal" autocomplete="off" class="form-input" value="${p.weight||''}" onchange="updateProfile('weight',this.value)"></div>
     </div>
 
     <div class="card">
@@ -1950,7 +1958,7 @@ function renderHunter(el) {
 
     <div class="card">
       <div class="section-subtitle">Setări Bară</div>
-      <div class="form-group"><label class="form-label">Greutate Bară (kg)</label><input type="number" step="0.5" class="form-input" value="${state.settings.barWeight}" onchange="updateBarWeight(this.value)"></div>
+      <div class="form-group"><label class="form-label">Greutate Bară (kg)</label><input type="text" inputmode="decimal" autocomplete="off" class="form-input" value="${state.settings.barWeight}" onchange="updateBarWeight(this.value)"></div>
       <div class="info-box">
         <strong>TOTAL</strong> = greutate totală (cabluri, ganteră unică).<br>
         <strong>/ SIDE</strong> = discuri pe o parte (×2 + bara).<br>
@@ -1967,7 +1975,7 @@ function renderHunter(el) {
       <button class="danger-btn" onclick="resetAllData()">🗑 Șterge TOATE datele</button>
     </div>
 
-    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v12.0 • SISTEM ACTIV</div>
+    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v14.0 • SISTEM ACTIV</div>
   `;
 }
 
@@ -2058,7 +2066,7 @@ function addGoal() {
   render();
 }
 function deleteGoal(i) { state.profile.goals.splice(i, 1); saveState(); render(); }
-function updateBarWeight(v) { state.settings.barWeight = parseFloat(v) || 20; saveState(); }
+function updateBarWeight(v) { state.settings.barWeight = parseFloat(String(v).replace(',', '.')) || 20; saveState(); }
 
 function exportData() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
