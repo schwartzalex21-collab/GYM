@@ -875,6 +875,11 @@ function displayKg(set) {
   return `${kg}`;
 }
 
+// Volum exact — fără rotunjire la întreg, dar fără zecimale inutile (235, 23.5, 70.5)
+function fmtVol(n) {
+  return String(Math.round(n * 100) / 100);
+}
+
 function findLastExerciseEntry(exId, excludeDate) {
   const dates = Object.keys(state.workouts).filter(d => d !== excludeDate && state.workouts[d].exercises[exId]).sort().reverse();
   for (const d of dates) {
@@ -1414,7 +1419,7 @@ function renderUnitToggle(exId, unit) {
 
 function renderSetRow(exId, sIdx, set) {
   const total = set.kg && set.reps ? computeTotalKg(set) : 0;
-  const vol = total && set.reps ? Math.round(total * parseFloat(set.reps)) : 0;
+  const vol = total && set.reps ? total * parseFloat(set.reps) : 0;
   const done = set.kg && set.reps;
   let gK = '', gR = '';
   const last = findLastExerciseEntry(exId, currentWorkoutDate);
@@ -1424,7 +1429,7 @@ function renderSetRow(exId, sIdx, set) {
       <div class="set-num">${sIdx+1}</div>
       <input type="text" inputmode="decimal" autocomplete="off" class="set-input ${done?'done':''}" value="${set.kg||''}" placeholder="${gK||'0'}" onfocus="this.select()" enterkeyhint="next" onchange="updateSet('${exId}',${sIdx},'kg',this.value)">
       <input type="number" inputmode="numeric" class="set-input ${done?'done':''}" value="${set.reps||''}" placeholder="${gR||'0'}" onfocus="this.select()" enterkeyhint="next" onchange="updateSet('${exId}',${sIdx},'reps',this.value)">
-      <div class="set-vol">${vol||'—'}</div>
+      <div class="set-vol">${vol ? fmtVol(vol) : '—'}</div>
       <button class="set-delete" onclick="deleteSet('${exId}',${sIdx})" aria-label="Șterge set"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg></button>
     </div>
   `;
@@ -1458,11 +1463,11 @@ function updateSet(exId, sIdx, field, value) {
   if (c) {
     const set = exData.sets[sIdx];
     const total = set.kg && set.reps ? computeTotalKg(set) : 0;
-    const vol = total && set.reps ? Math.round(total * parseFloat(set.reps)) : 0;
+    const vol = total && set.reps ? total * parseFloat(set.reps) : 0;
     const done = set.kg && set.reps;
     c.querySelectorAll(`[data-sidx="${sIdx}"] .set-input`).forEach(i => i.classList.toggle('done', done));
     const v = c.querySelector(`[data-sidx="${sIdx}"] .set-vol`);
-    if (v) v.textContent = vol || '—';
+    if (v) v.textContent = vol ? fmtVol(vol) : '—';
     const card = document.getElementById(`card-${exId}`);
     if (card && exData.sets.every(s => s.kg && s.reps)) {
       card.classList.add('active-exercise');
@@ -1740,7 +1745,7 @@ function computeTotals(cutoff) {
 
 function formatNumber(n) {
   if (Math.abs(n) >= 1000) return (n / 1000).toFixed(1).replace('.0','') + 'k';
-  return Math.round(n).toString();
+  return String(Math.round(n * 10) / 10); // exact până la 1 zecimală (întregii rămân întregi)
 }
 
 function renderHistoryList() {
@@ -1975,7 +1980,7 @@ function renderHunter(el) {
       <button class="danger-btn" onclick="resetAllData()">🗑 Șterge TOATE datele</button>
     </div>
 
-    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v14.0 • SISTEM ACTIV</div>
+    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v15.0 • SISTEM ACTIV</div>
   `;
 }
 
