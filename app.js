@@ -87,11 +87,12 @@ function migrateState() {
   const from = state.version || 1;
   if (from >= SCHEMA_VERSION) return;
   // from < 2: baseline (introducerea câmpului `version`).
-  // from < 3: streak devine reset real (nu decay ×0.7). Recalculează din istoric și
-  //           forțează reevaluarea rollover-ului, ca streak-urile rămase blocate (ex. 1
-  //           care nu mai cobora) să se corecteze imediat la încărcare.
+  // from < 3: streak devine reset real (nu decay ×0.7). Păstrează streak-ul/shield-urile salvate
+  //           și forțează reevaluarea rollover-ului (model reset) ca streak-urile rămase blocate
+  //           (ex. 1 care nu mai cobora) să se corecteze. Recalculează din habits doar dacă
+  //           nu există streak salvat (date foarte vechi).
   if (from < 3) {
-    recomputeStreakFromHabits();
+    if (!state.system.lastPerfectDate) recomputeStreakFromHabits();
     state.system.lastCheckDate = null;
   }
   state.version = SCHEMA_VERSION;
@@ -488,6 +489,15 @@ function recomputeStreakFromHabits() {
     return { streak: 0, lastPerfect: null };
   }
 
+  // Streak-ul e "viu" DOAR dacă ultima zi perfectă e azi sau ieri.
+  // Dacă e mai veche, lanțul e rupt → streak 0 (deterministic, indiferent de istoricul vechi).
+  const yesterday = addDaysKey(today, -1);
+  if (lastPerfect < yesterday) {
+    state.system.perfectStreak = 0;
+    state.system.lastPerfectDate = lastPerfect;
+    return { streak: 0, lastPerfect };
+  }
+
   // Numără zile consecutive perfecte mergând înapoi de la lastPerfect
   let streak = 0;
   let cursor = lastPerfect;
@@ -508,7 +518,7 @@ function processDailyRollover() {
   if (state.system.lastCheckDate === today) return;
 
   const last = state.system.lastPerfectDate;
-  if (last && last !== today) {
+  if (last && last !== today && state.system.perfectStreak > 0) {
     // Zile ratate între ultima zi perfectă și ieri
     const yesterday = addDaysKey(today, -1);
     if (last < yesterday) {
@@ -1980,7 +1990,7 @@ function renderHunter(el) {
       <button class="danger-btn" onclick="resetAllData()">🗑 Șterge TOATE datele</button>
     </div>
 
-    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v15.0 • SISTEM ACTIV</div>
+    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v16.0 • SISTEM ACTIV</div>
   `;
 }
 
@@ -2110,9 +2120,12 @@ function importData(e) {
       // Reseteaza flag-ul de migrare ca să recalculeze streak-ul pe noile date
       state.system.streakRecomputedV1 = false;
       saveState();
-      // Aplică migrarea imediat — recalculează streak din habits importate
-      recomputeStreakFromHabits();
       state.system.streakRecomputedV1 = true;
+      // Păstrează streak-ul/shield-urile salvate; recalculează din habits DOAR dacă backup-ul
+      // nu are streak salvat (backup foarte vechi). Apoi forțează rollover-ul (model reset) ca să
+      // aplice penalizarea pt zilele trecute de la export — fără garda lastCheckDate===azi.
+      if (!state.system.lastPerfectDate) recomputeStreakFromHabits();
+      state.system.lastCheckDate = null;
       processDailyRollover();
       saveState();
       render();
