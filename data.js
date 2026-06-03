@@ -320,6 +320,7 @@ const ACHIEVEMENTS = {
   // === SPECIAL/RANKS ===
   legendary_pull:  { id: 'legendary_pull',  title: 'Legendary Pull',  desc: 'Prima misiune legendară completată',         icon: '💎', rarity: 'gold' },
   untouchable:     { id: 'untouchable',     title: 'Untouchable',     desc: 'Prima utilizare de shield',                  icon: '🛡', rarity: 'bronze' },
+  week_warrior:    { id: 'week_warrior',    title: 'Săptămână Perfectă', desc: 'Toate cele 7 zile dintr-o săptămână perfecte', icon: '🗓️', rarity: 'gold' },
   boss_slayer:     { id: 'boss_slayer',     title: 'Boss Slayer',     desc: 'Primul Boss Day câștigat',                   icon: '👑', rarity: 'gold' },
   boss_10:         { id: 'boss_10',         title: 'Boss Hunter',     desc: '10 Boss Days câștigate',                     icon: '⚔', rarity: 'gold' },
   boss_25:         { id: 'boss_25',         title: 'Boss Master',     desc: '25 Boss Days câștigate',                     icon: '💀', rarity: 'legendary' },

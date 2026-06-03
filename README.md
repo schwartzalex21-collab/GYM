@@ -1,69 +1,91 @@
-# GYM — PPL Hypertrophy Tracker
+# SOLO HUNTER — Gamified Fitness & Wellness Tracker
 
-Aplicație personală de tracking pentru programul PPL Hypertrophy v2 — Barbell-First Edition.
+Tracker personal de fitness și disciplină, în stil **Solo Leveling**. Transformi
+antrenamentele și obiceiurile zilnice (sport, respirație, duș rece, lectură,
+meditație, post) în XP, nivele, ranguri și achievement-uri. Totul în română,
+100% local, fără cont și fără servere.
 
-## 🚀 Deploy pe Vercel
+## 🎮 Concept
 
-### Metoda 1: Drag & Drop (cel mai simplu)
-1. Intră pe [vercel.com](https://vercel.com) și loghează-te
-2. Apasă "Add New..." → "Project"
-3. Drag & drop folderul `gym-app` pe pagină
-4. Vercel detectează automat că e static, apasă "Deploy"
-5. Gata — primești un URL de tip `gym-tau.vercel.app`
-
-### Metoda 2: GitHub
-1. Push folderul într-un repo GitHub
-2. Import repo-ul în Vercel
-3. Build settings: lasă tot default (e static)
-4. Deploy
-
-## 📱 Adaugă pe iPhone (Home Screen)
-
-1. Deschide URL-ul în **Safari** (NU Chrome — Safari e necesar pentru PWA pe iOS)
-2. Apasă butonul de share (pătratul cu săgeată în sus)
-3. Scroll jos → "Add to Home Screen"
-4. Numele e deja "GYM", iconița e setată
-5. Apasă "Add"
-6. Acum ai aplicația pe home screen — se deschide fullscreen, fără browser bar
+Ești un „Hunter" care evoluează prin disciplină. Completezi misiuni zilnice,
+urci în nivel și rang (E-Rank → God Mode), îți crești cele 4 stats și
+deblochezi badge-uri. „Sistemul" îți dă misiuni — tu execuți.
 
 ## 🎯 Features
 
-- **Profil personal** cu poză, vârstă, greutate, înălțime, obiective
-- **Toate cele 7 zile** din PPL v2 cu toate exercițiile pre-configurate
-- **Logging seturi** cu kg + reps + volume calculation per set
-- **Switch unități per exercițiu**: Total / Per side (cu calculul barei) / Dumbbell each
-- **"Last Time" pill** pe fiecare exercițiu — vezi exact cu cât ai făcut ultima oară
-- **Copy last sets** — un tap și ai seturile copiate, doar progresezi
-- **Note per exercițiu** (RPE-free, doar text liber)
-- **Rest Timer** manual (1:00, 1:30, 2:00, 2:30, 3:00, 4:00) — vibrație + beep când termină
-- **Progress page** cu range selectabil (7z, 2s, 4s, 8s, 3l, 6l, total)
-  - Grafic evoluție per exercițiu (volum)
-  - Volum total agregat
-  - PR-uri și delta vs perioada anterioară
-- **Istoric** complet cu volume per zi, click pe orice zi pentru a o re-deschide
-- **Backup JSON** export/import — datele tale, controlul tău
-- **100% local** — totul în localStorage, zero servere, zero tracking
+- **Misiuni Principale** (6 zilnice): Respirație Wim Hof, Rugăciune AM,
+  Afirmații, Recunoștință PM, Duș Rece, Antrenament Fizic
+- **Misiuni Bonus** (4 zilnice, generate determinist per zi) — rarități
+  `common` / `rare` / `legendary` cu XP scalat (×1 / ×3 / ×5)
+- **Boss Day** săptămânal — o misiune grea cu recompensă 5× (+250 XP)
+- **Sistem XP / Nivele / Ranguri** — 10 trepte de rang, de la E-Rank Novice
+  la God Mode, cu glow și culori per rang
+- **4 Stats** (fără plafon): `STR` forță • `END` rezistență • `MND` mental •
+  `WIL` voință — fiecare cu tier-uri (Novice → Transcendent)
+- **103 Achievements** pe 4 rarități (bronze / silver / gold / legendary)
+- **Streak + Shields** — zile perfecte consecutive; shield-urile (max 3)
+  protejează streak-ul la o zi ratată
+- **Logging antrenamente** — program PPL (7 zile), seturi cu kg + reps + volum,
+  switch unități per exercițiu (Total / Per side cu calculul barei / DB each),
+  pill „Last Time", copiere seturi anterioare, note, exerciții custom
+- **Progres** — range selectabil (7z → total), grafice de evoluție per
+  exercițiu, volum agregat, PR-uri și delta vs. perioada anterioară, istoric
+- **Rest Timer** — presets (1:00–4:00), vibrație + beep la final
+- **Raport Săptămânal** (duminica) — zile perfecte, bonusuri, top stat, citat
+- **Backup JSON** — export/import complet al datelor
+- **100% local** — totul în `localStorage`, PWA offline, zero tracking
 
 ## 🗂️ Structură fișiere
 
 ```
-gym-app/
-├── index.html          # Aplicația completă (single file)
-├── manifest.json       # PWA manifest (iconiță home screen)
-├── icon-192.png        # PWA icon
-├── icon-512.png        # PWA icon
-├── apple-touch-icon.png
-├── vercel.json         # Config Vercel
-└── README.md
+.
+├── index.html      # Shell HTML + modale (single page)
+├── app.js          # Toată logica aplicației
+├── data.js         # Program, pool misiuni, boss-uri, achievements, citate
+├── style.css       # Stiluri + animații
+├── sw.js           # Service worker (PWA, offline)
+├── manifest.json   # PWA manifest
+├── vercel.json     # Config Vercel (headers)
+├── icon-192.png / icon-512.png / icon.svg
+└── q-*.png         # Imagini pentru misiuni (wim hof, prayer, workout...)
 ```
+
+## 🚀 Deploy pe Vercel
+
+**Drag & Drop:** intră pe [vercel.com](https://vercel.com) → „Add New…" →
+„Project" → trage folderul pe pagină → „Deploy". E site static, nu necesită build.
+
+**GitHub:** push folderul într-un repo → import în Vercel → lasă setările
+default → Deploy.
+
+## 📱 Instalare pe iPhone (Home Screen)
+
+1. Deschide URL-ul în **Safari** (necesar pentru PWA pe iOS)
+2. Buton Share (pătratul cu săgeată) → „Add to Home Screen"
+3. Apasă „Add" — se deschide fullscreen, fără bara de browser
 
 ## 💾 Backup
 
-**IMPORTANT:** localStorage poate fi șters dacă schimbi telefonul, faci hard reset al Safari, sau curăță cache-ul.
-**Fă export JSON săptămânal** din Profil → Exportă date.
+`localStorage` poate fi șters dacă schimbi telefonul, ștergi cache-ul Safari sau
+faci reset. **Exportă JSON săptămânal** din Hunter → „Export backup JSON".
+La import, datele se normalizează automat (stat-uri lipsă completate, streak
+recalculat din istoric).
 
 ## 🔧 Customizare
 
-- **Greutatea barei**: setabilă în Profil → Setări Bară (default 20kg pentru bară olimpică)
-- **Adăugare exerciții**: editezi `PROGRAM` din `index.html`
-- **Schimbare culori**: editezi `:root` din CSS (default accent: `#ff4500`)
+- **Conținut joc** (misiuni bonus, boss-uri, achievements, exerciții): editezi
+  `data.js`
+- **Culori / animații**: editezi `:root` și keyframes din `style.css`
+- **Greutatea barei**: setabilă în Hunter → Setări Bară (default 20 kg)
+
+## 🛠️ Dezvoltare locală
+
+Site static — orice server HTTP merge:
+
+```bash
+python3 -m http.server 8000
+# apoi deschide http://localhost:8000
+```
+
+> Notă: e inclus și `.claude/serve.py`, un server cu `no-store` folosit doar
+> pentru testare locală (ocolește cache-ul de browser). Nu afectează deploy-ul.

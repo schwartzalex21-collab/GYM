@@ -39,7 +39,6 @@ let state = {
 let currentPage = 'home';
 let currentWorkoutDate = null;
 let currentDayKey = null;
-let activeQuestId = null;
 
 // =================== STORAGE ===================
 const STORAGE_KEY = 'gym_app_v1';
@@ -78,6 +77,19 @@ function saveState() {
     if (e.name === 'QuotaExceededError') showToast('❌ Spațiu insuficient!');
     else showToast('❌ Eroare la salvare!');
   }
+}
+
+// =================== SCHEMA MIGRATIONS ===================
+// Crește SCHEMA_VERSION și adaugă un bloc `if (from < N)` pentru fiecare schimbare
+// de structură a datelor, ca utilizatorii existenți să-și migreze localStorage-ul în siguranță.
+const SCHEMA_VERSION = 2;
+function migrateState() {
+  const from = state.version || 1;
+  if (from >= SCHEMA_VERSION) return;
+  // from < 2: baseline (introducerea câmpului `version`) — nimic de transformat.
+  // Migrările viitoare, secvențial:  if (from < 3) { ...transformă... }
+  state.version = SCHEMA_VERSION;
+  saveState();
 }
 
 // =================== HELPERS ===================
@@ -132,6 +144,99 @@ function showToast(msg) {
   setTimeout(() => t.remove(), 3500);
 }
 
+// ===== PREMIUM JUICE =====
+// "+XP" plutitor care apare de la locul ultimei atingeri
+let _lastPointer = { x: 0, y: 0 };
+document.addEventListener('pointerdown', (e) => { _lastPointer = { x: e.clientX, y: e.clientY }; }, { passive: true, capture: true });
+
+function floatXP(amount) {
+  if (!amount || amount <= 0) return;
+  const x = _lastPointer.x || window.innerWidth / 2;
+  const y = _lastPointer.y || window.innerHeight * 0.4;
+  const el = document.createElement('div');
+  el.className = 'xp-float' + (amount >= 100 ? ' big' : '');
+  el.textContent = `+${amount} XP`;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1100);
+}
+
+// Animă un număr de la 0 la valoarea finală (easeOutCubic)
+function countUp(el, to, { from = 0, duration = 650, format = (v) => Math.round(v).toString() } = {}) {
+  if (!el) return;
+  to = Number(to) || 0;
+  const start = performance.now();
+  function tick(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    el.textContent = format(from + (to - from) * eased);
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// Scanează pagina pentru [data-countup] și animează numerele
+function runCountUps() {
+  document.querySelectorAll('[data-countup]').forEach(el => {
+    const to = Number(el.dataset.countup) || 0;
+    const fmt = el.dataset.countupFmt === 'k' ? formatNumber : (v) => Math.round(v).toString();
+    countUp(el, to, { from: 0, duration: 650, format: fmt });
+  });
+}
+
+// ===== ICONIȚE SVG PREMIUM (gradient, consistente cross-platform) =====
+const ICON_FLAME = `<svg viewBox="0 0 24 24" class="svg-flame" aria-hidden="true"><path fill="url(#grad-flame)" d="M12 22a7 7 0 0 0 7-7c0-2-3-6-7-10-4 4-7 8-7 10a7 7 0 0 0 7 7z"/></svg>`;
+const ICON_SHIELD = `<svg viewBox="0 0 24 24" class="svg-shield" aria-hidden="true"><path fill="url(#grad-shield)" d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5l8-3z"/></svg>`;
+const ICON_GEM = `<svg viewBox="0 0 24 24" class="svg-gem" aria-hidden="true"><path fill="currentColor" d="M6 3h12l3.5 5.5L12 21 2.5 8.5z"/><path fill="#fff" opacity="0.22" d="M6 3h12l-6 5.5z"/></svg>`;
+
+// ===== CELEBRARE — explozie de particule + flash de ecran =====
+function burstParticles(x, y, { count = 30, colors = ['#00ff9d','#00e5ff','#ff9d3a','#ffffff'], spread = 170, power = 1 } = {}) {
+  const layer = document.createElement('div');
+  layer.className = 'burst-layer';
+  layer.style.left = x + 'px';
+  layer.style.top = y + 'px';
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'burst-particle';
+    const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.6;
+    const dist = (spread * 0.35 + Math.random() * spread * 0.65) * power;
+    p.style.setProperty('--tx', (Math.cos(angle) * dist).toFixed(1) + 'px');
+    p.style.setProperty('--ty', (Math.sin(angle) * dist).toFixed(1) + 'px');
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    const size = (5 + Math.random() * 6).toFixed(1);
+    p.style.width = size + 'px'; p.style.height = size + 'px';
+    p.style.animationDelay = Math.floor(Math.random() * 70) + 'ms';
+    if (Math.random() > 0.5) p.style.borderRadius = '50%';
+    layer.appendChild(p);
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 1500);
+}
+
+function screenFlash(color = 'rgba(0, 255, 157,0.5)') {
+  const f = document.createElement('div');
+  f.className = 'screen-flash';
+  f.style.background = `radial-gradient(circle at 50% 44%, ${color} 0%, transparent 70%)`;
+  document.body.appendChild(f);
+  setTimeout(() => f.remove(), 600);
+}
+
+// Onboarding — mesaj de bun venit la prima deschidere
+function showWelcome() {
+  const m = document.getElementById('welcome-modal');
+  if (!m) return;
+  haptic('levelUp');
+  m.classList.add('active');
+  setTimeout(() => burstParticles(window.innerWidth / 2, window.innerHeight * 0.38, { count: 34, power: 1.3, colors: ['#00ff9d','#b49cff','#00e5ff','#ffffff'] }), 280);
+}
+function closeWelcome() {
+  const m = document.getElementById('welcome-modal');
+  if (m) m.classList.remove('active');
+  state.system.welcomed = true;
+  saveState();
+}
+
 // Haptic feedback — pattern-uri numite. iOS fail silent (nu suportă vibrate).
 const HAPTIC_PATTERNS = {
   tap:       [8],
@@ -178,15 +283,15 @@ function getRequiredXP(level) {
 }
 
 const RANK_TIERS = [
-  { min: 1,   max: 9,   key: 'E', name: 'E-Rank Novice',    color: '#a0a0a0' },
-  { min: 10,  max: 19,  key: 'D', name: 'D-Rank Fighter',   color: '#5dd39e' },
-  { min: 20,  max: 34,  key: 'C', name: 'C-Rank Elite',     color: '#4a9eff' },
-  { min: 35,  max: 49,  key: 'B', name: 'B-Rank Veteran',   color: '#8a6eff' },
-  { min: 50,  max: 69,  key: 'A', name: 'A-Rank Champion',  color: '#d4a843', glow: '0 0 12px rgba(212,168,67,0.5)' },
-  { min: 70,  max: 84,  key: 'S', name: 'S-Rank Hero',      color: '#ff9d3a', glow: '0 0 14px rgba(255,157,58,0.5)' },
-  { min: 85,  max: 99,  key: 'SS',name: 'National Level',   color: '#ff5d8f', glow: '0 0 16px rgba(255,93,143,0.5)' },
-  { min: 100, max: 124, key: 'SSS',name:'Shadow Monarch',   color: '#00f0ff', glow: '0 0 20px rgba(0,240,255,0.7)' },
-  { min: 125, max: 149, key: 'X', name: 'Death Angel',      color: '#ff3a3a', glow: '0 0 22px rgba(255,58,58,0.7)' },
+  { min: 1,   max: 9,   key: 'E', name: 'E-Rank Novice',    color: '#6b7a73' },
+  { min: 10,  max: 19,  key: 'D', name: 'D-Rank Fighter',   color: '#00ff9d' },
+  { min: 20,  max: 34,  key: 'C', name: 'C-Rank Elite',     color: '#00e5ff' },
+  { min: 35,  max: 49,  key: 'B', name: 'B-Rank Veteran',   color: '#18a0ff', glow: '0 0 12px rgba(24,160,255,0.5)' },
+  { min: 50,  max: 69,  key: 'A', name: 'A-Rank Champion',  color: '#ffb627', glow: '0 0 12px rgba(255,182,39,0.5)' },
+  { min: 70,  max: 84,  key: 'S', name: 'S-Rank Hero',      color: '#ff8a1e', glow: '0 0 14px rgba(255,138,30,0.55)' },
+  { min: 85,  max: 99,  key: 'SS',name: 'National Level',   color: '#ff5a2e', glow: '0 0 16px rgba(255,90,46,0.55)' },
+  { min: 100, max: 124, key: 'SSS',name:'Shadow Monarch',   color: '#00fff0', glow: '0 0 20px rgba(0,255,240,0.7)' },
+  { min: 125, max: 149, key: 'X', name: 'Death Angel',      color: '#ff2d55', glow: '0 0 22px rgba(255,45,85,0.7)' },
   { min: 150, max: 9999,key: 'G', name: 'God Mode',         color: '#ffffff', glow: '0 0 24px rgba(255,255,255,0.9)' }
 ];
 
@@ -218,6 +323,7 @@ function addXP(amount, reason, statKey) {
 
   saveState();
   updateGlobalXPBar();
+  if (amount > 0) floatXP(amount);
   if (amount !== 0) {
     const sign = amount >= 0 ? '+' : '';
     showToast(`${sign}${amount} XP (${reason})`);
@@ -252,9 +358,9 @@ function addStatXP(key, amount) {
     const statMilestones = [10, 25, 50, 75, 100, 150, 200];
     statMilestones.forEach(val => {
       if (s.level >= val) {
-        if (val === 50 && statKey === 'STR') unlockAchievement('stat_50');
-        else if (val === 100 && statKey === 'STR') unlockAchievement('stat_100');
-        else unlockAchievement(`${statKey.toLowerCase()}_${val}`);
+        if (val === 50 && key === 'STR') unlockAchievement('stat_50');
+        else if (val === 100 && key === 'STR') unlockAchievement('stat_100');
+        else unlockAchievement(`${key.toLowerCase()}_${val}`);
       }
     });
     checkAllStats();
@@ -269,14 +375,14 @@ function statPct(key) {
 
 // Stat tier — visual rank for hunter stats (uncapped)
 function getStatTier(level) {
-  if (level < 10)  return { name: 'Novice',       color: '#9994aa', glow: 'none' };
-  if (level < 25)  return { name: 'Adept',        color: '#5dd39e', glow: '0 0 8px rgba(93,211,158,0.4)' };
-  if (level < 50)  return { name: 'Expert',       color: '#4a9eff', glow: '0 0 10px rgba(74,158,255,0.45)' };
-  if (level < 75)  return { name: 'Master',       color: '#8a6eff', glow: '0 0 12px rgba(138,110,255,0.5)' };
-  if (level < 100) return { name: 'Grandmaster',  color: '#d4a843', glow: '0 0 14px rgba(212,168,67,0.55)' };
-  if (level < 150) return { name: 'Mythic',       color: '#ff9d3a', glow: '0 0 16px rgba(255,157,58,0.6)' };
-  if (level < 200) return { name: 'Legend',       color: '#ff3a3a', glow: '0 0 18px rgba(255,58,58,0.65)' };
-  if (level < 300) return { name: 'Ascendant',    color: '#ff5d8f', glow: '0 0 20px rgba(255,93,143,0.7)' };
+  if (level < 10)  return { name: 'Novice',       color: '#6b7a73', glow: 'none' };
+  if (level < 25)  return { name: 'Adept',        color: '#00ff9d', glow: '0 0 8px rgba(0,255,157,0.4)' };
+  if (level < 50)  return { name: 'Expert',       color: '#00e5ff', glow: '0 0 10px rgba(0,229,255,0.45)' };
+  if (level < 75)  return { name: 'Master',       color: '#18a0ff', glow: '0 0 12px rgba(24,160,255,0.5)' };
+  if (level < 100) return { name: 'Grandmaster',  color: '#ffb627', glow: '0 0 14px rgba(255,182,39,0.55)' };
+  if (level < 150) return { name: 'Mythic',       color: '#ff8a1e', glow: '0 0 16px rgba(255,138,30,0.6)' };
+  if (level < 200) return { name: 'Legend',       color: '#ff2d55', glow: '0 0 18px rgba(255,45,85,0.65)' };
+  if (level < 300) return { name: 'Ascendant',    color: '#00fff0', glow: '0 0 20px rgba(0,255,240,0.7)' };
   return                  { name: 'Transcendent', color: '#ffffff', glow: '0 0 24px rgba(255,255,255,0.9)' };
 }
 
@@ -285,6 +391,8 @@ function checkAllStats() {
   if (stats.every(k => state.stats[k].level >= 10)) unlockAchievement('all_stats_10');
   if (stats.every(k => state.stats[k].level >= 25)) unlockAchievement('all_stats_25');
   if (stats.every(k => state.stats[k].level >= 50)) unlockAchievement('all_stats_50');
+  if (stats.every(k => state.stats[k].level >= 75)) unlockAchievement('all_stats_75');
+  if (stats.every(k => state.stats[k].level >= 100)) unlockAchievement('all_stats_100');
 }
 
 // =================== HABITS (main daily quests) ===================
@@ -303,6 +411,13 @@ function toggleHabit(date, habitId) {
   } else {
     haptic('tap');
     state.system.xp = Math.max(0, state.system.xp - q.xp);
+    // Dacă ziua era marcată perfectă dar acum nu mai e: revocă bonusul + recalculează streak
+    const h = state.habits[date];
+    if (h.perfect_claimed && !isPerfectDay(h)) {
+      h.perfect_claimed = false;
+      state.system.xp = Math.max(0, state.system.xp - 50);
+      recomputeStreakFromHabits();
+    }
     saveState();
     updateGlobalXPBar();
   }
@@ -468,31 +583,46 @@ function ensureBonusForToday() {
 
 function toggleBonusMission(id) {
   const m = state.bonusMissions.missions.find(x => x.id === id);
-  if (!m || m.completed) return;
-  m.completed = true;
-  _justCompletedBonusId = id;
-  if (m.rarity === 'legendary') haptic('levelUp');
-  else if (m.rarity === 'rare') haptic('heavy');
-  else haptic('success');
-  state.system.bonusCompletedTotal = (state.system.bonusCompletedTotal || 0) + 1;
-  addXP(m.xp, `Bonus: ${getBonusMeta(id).title}`, m.stat);
-  if (m.rarity === 'rare') {
-    if (state.system.shields < 3) {
-      state.system.shields++;
-      showToast(`🛡 +1 Shield ${state.system.shields}/3`);
+  if (!m) return;
+  const today = todayKey();
+  if (!state.habits[today]) state.habits[today] = {};
+
+  if (!m.completed) {
+    // ----- COMPLETARE -----
+    m.completed = true;
+    _justCompletedBonusId = id;
+    if (m.rarity === 'legendary') haptic('levelUp');
+    else if (m.rarity === 'rare') haptic('heavy');
+    else haptic('success');
+    state.system.bonusCompletedTotal = (state.system.bonusCompletedTotal || 0) + 1;
+    state.habits[today].bonusDone = (state.habits[today].bonusDone || 0) + 1; // contor per-zi pt. raport săptămânal
+    addXP(m.xp, `Bonus: ${getBonusMeta(id).title}`, m.stat);
+    if (m.rarity === 'rare' || m.rarity === 'legendary') {
+      if (state.system.shields < 3) {
+        state.system.shields++;
+        showToast(`🛡 +1 Shield ${state.system.shields}/3`);
+      }
     }
+    if (m.rarity === 'legendary') unlockAchievement('legendary_pull');
+    const totalMissions = state.system.bonusCompletedTotal;
+    const missionMilestones = [1, 10, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000];
+    missionMilestones.forEach(val => {
+      if (totalMissions >= val) {
+        if (val === 50) unlockAchievement('bonus_hunter');
+        else if (val === 500) unlockAchievement('bonus_500');
+        else unlockAchievement(`missions_${val}`);
+      }
+    });
+    addStatXP('WIL', Math.round(m.xp * 0.25));
+  } else {
+    // ----- ANULARE (undo la click greșit) -----
+    haptic('tap');
+    m.completed = false;
+    state.system.bonusCompletedTotal = Math.max(0, (state.system.bonusCompletedTotal || 0) - 1);
+    state.habits[today].bonusDone = Math.max(0, (state.habits[today].bonusDone || 0) - 1);
+    state.system.xp = Math.max(0, state.system.xp - m.xp);
+    // Nota: stat XP și shield-urile nu se revocă (consistent cu dezbifarea misiunilor principale)
   }
-  if (m.rarity === 'legendary') unlockAchievement('legendary_pull');
-  const totalMissions = state.system.bonusCompletedTotal;
-  const missionMilestones = [1, 10, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500, 600, 700, 800, 900, 1000];
-  missionMilestones.forEach(val => {
-    if (totalMissions >= val) {
-      if (val === 50) unlockAchievement('bonus_hunter');
-      else if (val === 500) unlockAchievement('bonus_500');
-      else unlockAchievement(`missions_${val}`);
-    }
-  });
-  addStatXP('WIL', Math.round(m.xp * 0.25));
   saveState();
   render();
 }
@@ -547,6 +677,8 @@ function completeBoss() {
   if (state.system.bossesCompletedTotal >= 10) unlockAchievement('boss_10');
   if (state.system.bossesCompletedTotal >= 25) unlockAchievement('boss_25');
   if (state.system.bossesCompletedTotal >= 50) unlockAchievement('boss_50');
+  screenFlash('rgba(255,58,58,0.4)');
+  setTimeout(() => burstParticles(window.innerWidth / 2, window.innerHeight * 0.5, { count: 48, power: 1.7, colors: ['#ff3a3a','#ff9d3a','#00e5ff','#ffffff'] }), 90);
   saveState();
   render();
 }
@@ -600,6 +732,15 @@ function showAchievementModal(id) {
   const particles = modal.querySelector('.particles');
   if (particles) { particles.style.animation = 'none'; void particles.offsetWidth; particles.style.animation = ''; }
   modal.classList.add('active');
+  setTimeout(() => {
+    const legendary = a.rarity === 'legendary';
+    burstParticles(window.innerWidth / 2, window.innerHeight * 0.4, {
+      count: legendary ? 46 : 26,
+      power: legendary ? 1.6 : 1.05,
+      colors: legendary ? ['#ff9d3a','#ffd98a','#ffffff','#00e5ff'] : ['#00ff9d','#b49cff','#ffffff']
+    });
+    if (legendary) screenFlash('rgba(255,157,58,0.35)');
+  }, 200);
 }
 
 function closeAchievementModal() {
@@ -628,7 +769,8 @@ function getWeeklyData() {
     const h = state.habits[d] || {};
     const mainDone = !!(h.wim_hof && h.prayer_am && h.affirmations && h.prayer_pm && h.workout_xp_claimed && h.cold_shower);
     const main = ['wim_hof', 'prayer_am', 'affirmations', 'prayer_pm', 'workout_xp_claimed', 'cold_shower'].filter(k => h[k]).length;
-    const bonus = (state.bonusMissions.date === d) ? state.bonusMissions.missions.filter(m => m.completed).length : 0;
+    let bonus = h.bonusDone || 0;
+    if (d === today && state.bonusMissions.date === d) bonus = Math.max(bonus, state.bonusMissions.missions.filter(m => m.completed).length);
     days.push({ date: d, main, mainDone, bonus, total: main + bonus });
   }
   const perfect = days.filter(d => d.mainDone).length;
@@ -683,7 +825,7 @@ function openWeeklyReport() {
 
       ${data.allPerfect ? `
         <div style="text-align:center; padding: 12px; background: var(--gold-soft); border: 1px solid var(--gold); border-radius: 10px; margin-bottom: 12px;">
-          <div style="font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 2px; color: var(--gold);">🏆 PERFECT WEEK!</div>
+          <div style="font-family: 'Orbitron', sans-serif; font-size: 18px; letter-spacing: 2px; color: var(--gold);">🏆 PERFECT WEEK!</div>
           <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Toate 7 zile cu misiunile principale complete.</div>
         </div>
       ` : ''}
@@ -771,6 +913,10 @@ function showLevelUpModal(newLevel) {
   rankEl.style.borderColor = rank.color;
   rankEl.style.boxShadow = rank.glow || 'none';
   modal.classList.add('active');
+  setTimeout(() => {
+    screenFlash('rgba(0, 229, 255,0.42)');
+    burstParticles(window.innerWidth / 2, window.innerHeight * 0.42, { count: 42, power: 1.5, colors: ['#00e5ff','#ffe79a','#00ff9d','#ffffff'] });
+  }, 140);
 }
 function closeLevelUpModal() { document.getElementById('levelup-modal').classList.remove('active'); }
 
@@ -778,7 +924,6 @@ function closeLevelUpModal() { document.getElementById('levelup-modal').classLis
 function openQuestModal(id) {
   const q = QUESTS[id];
   if (!q) return;
-  activeQuestId = id;
   document.getElementById('quest-modal-title').textContent = q.name;
   document.getElementById('quest-modal-body').innerHTML = `
     <div style="font-style: italic; color: var(--accent); margin-bottom: 12px;">Misiune: ${q.instruction || 'Citește cu atenție.'}</div>
@@ -787,9 +932,6 @@ function openQuestModal(id) {
   document.getElementById('quest-modal').classList.add('active');
 }
 function closeQuestModal() { document.getElementById('quest-modal').classList.remove('active'); }
-function completeQuestFromModal() {
-  if (activeQuestId) { toggleHabit(todayKey(), activeQuestId); closeQuestModal(); }
-}
 
 // =================== BONUS INFO MODAL ===================
 function openBonusModal(id) {
@@ -800,24 +942,47 @@ function openBonusModal(id) {
   modal.querySelector('.modal-title').innerHTML = `${meta.title} <span class="rarity-badge ${m.rarity}" style="margin-left:8px; vertical-align:middle;">${m.rarity}</span>`;
   modal.querySelector('#bonus-modal-body').innerHTML = `
     <div style="font-size: 14px; line-height: 1.6; color: var(--text-primary); margin-bottom: 14px;">${meta.desc}</div>
-    <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); letter-spacing: 1px;">RECOMPENSĂ: +${m.xp} XP</div>
-    <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-tertiary); letter-spacing: 1px; margin-top: 4px;">STAT BOOST: ${m.stat}</div>
+    <div style="font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--accent); letter-spacing: 1px;">RECOMPENSĂ: +${m.xp} XP</div>
+    <div style="font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-tertiary); letter-spacing: 1px; margin-top: 4px;">STAT BOOST: ${m.stat}</div>
     ${m.rarity === 'rare' || m.rarity === 'legendary' ? '<div style="font-size: 11px; color: var(--gold); margin-top: 8px;">🛡 Câștigi 1 shield (max 3) pentru misiune rară completată.</div>' : ''}
   `;
-  modal.dataset.bonusId = id;
   modal.classList.add('active');
 }
 function closeBonusModal() { document.getElementById('bonus-modal').classList.remove('active'); }
-function completeBonusFromModal() {
-  const id = document.getElementById('bonus-modal').dataset.bonusId;
-  if (id) { toggleBonusMission(id); closeBonusModal(); }
+
+// Confirmare tematică (înlocuiește confirm() nativ) — întoarce Promise<boolean>
+function showConfirm({ title = 'Confirmare', body = '', confirmText = 'CONFIRMĂ', cancelText = 'ANULEAZĂ', danger = false } = {}) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('confirm-modal');
+    if (!modal) { resolve(window.confirm(body)); return; }
+    modal.querySelector('#confirm-title').textContent = title;
+    modal.querySelector('#confirm-body').textContent = body;
+    const okBtn = modal.querySelector('#confirm-ok');
+    const cancelBtn = modal.querySelector('#confirm-cancel');
+    okBtn.textContent = confirmText;
+    cancelBtn.textContent = cancelText;
+    okBtn.classList.toggle('danger', danger);
+    haptic('warning');
+    const cleanup = (val) => {
+      modal.classList.remove('active');
+      okBtn.onclick = null; cancelBtn.onclick = null; modal.onclick = null;
+      resolve(val);
+    };
+    okBtn.onclick = () => cleanup(true);
+    cancelBtn.onclick = () => cleanup(false);
+    modal.onclick = (e) => { if (e.target === modal) cleanup(false); };
+    modal.classList.add('active');
+  });
 }
 
 // =================== NAVIGATION ===================
+let _navRender = false; // true doar la schimbarea paginii — controlează scroll-to-top + animația de intrare
+
 function navigate(page) {
   if (currentPage !== page) haptic('selection');
   currentPage = page;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.page === page));
+  _navRender = true;
   render();
 }
 
@@ -825,8 +990,7 @@ function render() {
   const el = document.getElementById('page-content');
   document.getElementById('date-pill').textContent = formatDate(todayKey()).toUpperCase();
   updateGlobalXPBar();
-  el.className = 'fade-in';
-  void el.offsetWidth;
+  if (_navRender) { el.className = 'fade-in'; void el.offsetWidth; }
 
   updateTimerVisibility();
 
@@ -840,7 +1004,8 @@ function render() {
   else if (currentPage === 'achievements') renderAchievements(el);
   else if (currentPage === 'hunter') renderHunter(el);
 
-  window.scrollTo(0, 0);
+  if (_navRender) { runCountUps(); window.scrollTo(0, 0); }
+  _navRender = false;
 }
 
 // =================== AZI / HOME PAGE ===================
@@ -856,40 +1021,29 @@ function renderHome(el) {
 
   const mainCount = ['wim_hof','prayer_am','affirmations','prayer_pm','workout_xp_claimed','cold_shower'].filter(k => habits[k]).length;
 
-  // Glance widget
-  const glance = `
-    <div class="glance-widget">
-      <div class="glance-row">
-        <div>
-          <div class="glance-streak${_streakJustIncremented ? ' just-incremented' : ''}">${streak}🔥</div>
-          <div class="glance-streak-label">Streak Zile</div>
-        </div>
-        <div class="glance-missions">
-          <div class="glance-missions-big">${mainCount}/6</div>
-          <div class="glance-streak-label">Misiuni Azi</div>
-        </div>
-      </div>
-      <div class="glance-xp-bar"><div class="glance-xp-fill" style="width: ${Math.min(100,(xp/req)*100)}%"></div></div>
-    </div>
-  `;
-
-  // Shields row
+  // Status card consolidat — streak + misiuni + shields + XP într-un singur loc (fără redundanță)
   const shields = state.system.shields || 0;
-  const shieldsHtml = `
-    <div class="streak-shield-row">
-      <div class="streak-flame ${streak >= 30 ? 'legend' : streak >= 7 ? 'fire' : ''}">
-        <div class="streak-num${_streakJustIncremented ? ' just-incremented' : ''}">${streak}</div>
-        <div>
-          <div class="streak-label">Streak</div>
-          <div style="font-size:10px; color: var(--text-tertiary); margin-top:2px;">${streak < 7 ? 'Continuă! Sub 7 zile.' : streak >= 30 ? '⚡ MONARH AL UMBREI' : 'În flăcări!'}</div>
+  const streakNote = streak < 7 ? 'Continuă! Sub 7 zile.' : streak >= 30 ? '⚡ Monarh al Umbrei' : '🔥 În flăcări!';
+  const statusHtml = `
+    <div class="status-card">
+      <div class="status-stats">
+        <div class="status-stat">
+          <div class="status-stat-num streak${_streakJustIncremented ? ' just-incremented' : ''}">${streak}<span class="status-flame">${ICON_FLAME}</span></div>
+          <div class="status-stat-label">Streak Zile</div>
+        </div>
+        <div class="status-stat status-stat-mid">
+          <div class="status-stat-num">${mainCount}<span class="status-stat-sub">/6</span></div>
+          <div class="status-stat-label">Misiuni Azi</div>
+        </div>
+        <div class="status-stat">
+          <div class="shield-stack" style="justify-content:center; height:38px; align-items:center;">
+            ${[0,1,2].map(i => `<div class="shield-icon ${i < shields ? 'active' : ''}">${ICON_SHIELD}</div>`).join('')}
+          </div>
+          <div class="status-stat-label">Shields</div>
         </div>
       </div>
-      <div>
-        <div class="streak-label" style="text-align:right; margin-bottom:4px;">Shields</div>
-        <div class="shield-stack">
-          ${[0,1,2].map(i => `<div class="shield-icon ${i < shields ? 'active' : ''}">🛡</div>`).join('')}
-        </div>
-      </div>
+      <div class="status-xp-bar"><div class="status-xp-fill" style="width:${Math.min(100,(xp/req)*100)}%"></div></div>
+      <div class="status-note">${streakNote}</div>
     </div>
   `;
 
@@ -941,7 +1095,7 @@ function renderHome(el) {
           <div class="quest-name">${q.name}</div>
           <div class="quest-xp">+${q.xp} XP • ${q.stat}</div>
         </div>
-        <div class="quest-checkbox" onclick="event.stopPropagation(); toggleHabit('${today}', '${q.id}')">
+        <div class="quest-checkbox" role="button" aria-label="Bifează misiunea" onclick="event.stopPropagation(); toggleHabit('${today}', '${q.id}')">
           <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7"/></svg>
         </div>
       </div>
@@ -956,7 +1110,7 @@ function renderHome(el) {
     const justClass = _justCompletedBonusId === m.id ? ' just-completed' : '';
     return `
       <div class="bonus-mission-card rarity-${m.rarity} ${m.completed ? 'done' : ''}${justClass}" onclick="openBonusModal('${m.id}')">
-        <div class="bonus-icon">${m.rarity === 'legendary' ? '💎' : m.rarity === 'rare' ? '⚜' : '◆'}</div>
+        <div class="bonus-icon">${ICON_GEM}</div>
         <div class="bonus-info">
           <div class="bonus-title">${meta.title}</div>
           <div class="bonus-meta">
@@ -965,7 +1119,7 @@ function renderHome(el) {
             <span>• ${m.stat}</span>
           </div>
         </div>
-        <div class="quest-checkbox" onclick="event.stopPropagation(); toggleBonusMission('${m.id}')">
+        <div class="quest-checkbox" role="button" aria-label="Bifează bonusul" onclick="event.stopPropagation(); toggleBonusMission('${m.id}')">
           <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7"/></svg>
         </div>
       </div>
@@ -973,19 +1127,18 @@ function renderHome(el) {
   }).join('');
 
   el.innerHTML = `
-    <div class="stagger-children">
-    ${glance}
+    <div class="${_navRender ? 'stagger-children' : ''}">
+    ${statusHtml}
 
     <div class="greeting-card">
       <div class="greeting">SISTEMUL TE SALUTĂ,</div>
       <div class="greeting-name">${escapeHtml(state.profile.name || 'Hunter').toUpperCase()}</div>
       <div class="greeting-stats">
-        <span><strong>${state.system.bonusCompletedTotal || 0}</strong> bonus done</span>
-        <span><strong>${Object.keys(state.achievements).length}</strong> achievements</span>
+        <span><strong>${state.system.bonusCompletedTotal || 0}</strong> bonusuri</span>
+        <span><strong>${Object.keys(state.achievements).length}</strong> realizări</span>
       </div>
     </div>
 
-    ${shieldsHtml}
     ${bossHtml}
 
     <div class="quests-container">
@@ -993,10 +1146,10 @@ function renderHome(el) {
       ${questsHtml}
     </div>
 
-    <div class="quests-container" style="background: linear-gradient(135deg, var(--bg-surface), rgba(138, 110, 255, 0.04));">
+    <div class="quests-container" style="background: linear-gradient(135deg, var(--bg-surface), rgba(0, 255, 157, 0.04));">
       <div class="bonus-section-label">
         <div class="section-subtitle" style="margin-bottom:0;">✦ Misiuni Bonus</div>
-        <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-tertiary); letter-spacing: 1px;">${bonusDone}/${bonusTotal}</div>
+        <div style="font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-tertiary); letter-spacing: 1px;">${bonusDone}/${bonusTotal}</div>
       </div>
       ${bonusHtml}
     </div>
@@ -1008,7 +1161,7 @@ function renderHome(el) {
         <div class="section-subtitle" style="margin-bottom:4px;">⚡ Antrenament în Curs</div>
         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
           <div>
-            <div style="font-family: 'Bebas Neue', sans-serif; font-size: 26px; letter-spacing: 1.5px;">${window.PROGRAM[todayWorkout.dayKey]?.name || 'Custom'}</div>
+            <div style="font-family: 'Orbitron', sans-serif; font-size: 26px; letter-spacing: 1.5px;">${window.PROGRAM[todayWorkout.dayKey]?.name || 'Custom'}</div>
             <div style="font-size: 12px; color: var(--text-secondary); margin-top:2px;">Apasă pentru a continua</div>
           </div>
           <svg fill="none" stroke="var(--accent)" viewBox="0 0 24 24" width="28" height="28" stroke-width="2"><path d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
@@ -1080,7 +1233,7 @@ function renderTomorrowPreview() {
     const meta = window.BONUS_MISSION_POOL.find(x => x.id === m.id) || { title: m.id, desc: '' };
     return `
       <div class="bonus-mission-card rarity-${m.rarity}" style="cursor: default; opacity: 0.85;">
-        <div class="bonus-icon">${m.rarity === 'legendary' ? '💎' : m.rarity === 'rare' ? '⚜' : '◆'}</div>
+        <div class="bonus-icon">${ICON_GEM}</div>
         <div class="bonus-info">
           <div class="bonus-title">${meta.title}</div>
           <div class="bonus-meta">
@@ -1094,18 +1247,18 @@ function renderTomorrowPreview() {
   }).join('');
 
   const bossHtml = bossMission ? `
-    <div style="background: linear-gradient(135deg, rgba(255,58,58,0.05), rgba(212,168,67,0.04)); border: 1.5px solid var(--danger); border-radius: 10px; padding: 12px; margin-bottom: 10px;">
+    <div style="background: linear-gradient(135deg, rgba(255,58,58,0.05), rgba(0, 229, 255,0.04)); border: 1.5px solid var(--danger); border-radius: 10px; padding: 12px; margin-bottom: 10px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-        <div style="font-family: 'Bebas Neue', sans-serif; font-size: 12px; letter-spacing: 2px; color: var(--danger);">⚠ BOSS DAY MÂINE</div>
-        <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--gold);">+250 XP</div>
+        <div style="font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: 2px; color: var(--danger);">⚠ BOSS DAY MÂINE</div>
+        <div style="font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--gold);">+250 XP</div>
       </div>
-      <div style="font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: var(--text-primary); letter-spacing: 1px; margin-bottom: 4px;">${bossMission.title}</div>
+      <div style="font-family: 'Orbitron', sans-serif; font-size: 18px; color: var(--text-primary); letter-spacing: 1px; margin-bottom: 4px;">${bossMission.title}</div>
       <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">${bossMission.desc}</div>
     </div>
   ` : '';
 
   return `
-    <div class="card" style="background: ${isEvening ? 'linear-gradient(135deg, var(--bg-surface), rgba(212, 168, 67, 0.06))' : 'var(--bg-surface)'}; border-color: ${isEvening ? 'var(--gold)' : 'var(--border-light)'}; margin-top: 16px;">
+    <div class="card" style="background: ${isEvening ? 'linear-gradient(135deg, var(--bg-surface), rgba(0, 229, 255, 0.06))' : 'var(--bg-surface)'}; border-color: ${isEvening ? 'var(--gold)' : 'var(--border-light)'}; margin-top: 16px;">
       <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleTomorrowPreview()">
         <div>
           <div class="section-subtitle" style="margin-bottom: 4px; color: ${isEvening ? 'var(--gold)' : 'var(--accent)'};">${isEvening ? '🌙 PLANIFICĂ MÂINE' : '👁 SNEAK PEEK — MÂINE'}</div>
@@ -1136,12 +1289,17 @@ function startBossCountdown() {
 }
 
 // =================== WORKOUT PAGE ===================
-function startWorkout(dayKey) {
+async function startWorkout(dayKey) {
   const today = todayKey();
   if (!state.workouts[today]) {
     state.workouts[today] = { dayKey, exercises: {} };
   } else if (state.workouts[today].dayKey !== dayKey) {
-    if (!confirm(`Astăzi ai început deja ${window.PROGRAM[state.workouts[today].dayKey]?.name || 'un antrenament'}. Schimbi cu ${window.PROGRAM[dayKey].name}? (datele actuale se vor pierde)`)) return;
+    const ok = await showConfirm({
+      title: 'Schimbi antrenamentul?',
+      body: `Astăzi ai început deja ${window.PROGRAM[state.workouts[today].dayKey]?.name || 'un antrenament'}. Dacă pornești ${window.PROGRAM[dayKey].name}, datele de azi se pierd.`,
+      confirmText: 'SCHIMBĂ', danger: true
+    });
+    if (!ok) return;
     state.workouts[today] = { dayKey, exercises: {} };
   }
   saveState();
@@ -1152,11 +1310,12 @@ function openWorkout(dateKey, dayKey) {
   currentWorkoutDate = dateKey;
   currentDayKey = dayKey;
   currentPage = 'workout';
+  _navRender = true;
   render();
 }
 
 function renderWorkout(el) {
-  const day = window.PROGRAM[currentDayKey];
+  const day = window.PROGRAM[currentDayKey] || { name: 'Antrenament', focus: 'Custom', exercises: [] };
   const workout = state.workouts[currentWorkoutDate] || { dayKey: currentDayKey, exercises: {} };
   const programIds = day.exercises.map(e => e.id);
   const customIds = Object.keys(workout.exercises).filter(id => !programIds.includes(id));
@@ -1258,7 +1417,7 @@ function renderSetRow(exId, sIdx, set) {
       <input type="number" inputmode="decimal" step="0.5" class="set-input ${done?'done':''}" value="${set.kg||''}" placeholder="${gK||'0'}" onfocus="this.select()" enterkeyhint="next" onchange="updateSet('${exId}',${sIdx},'kg',this.value)">
       <input type="number" inputmode="numeric" class="set-input ${done?'done':''}" value="${set.reps||''}" placeholder="${gR||'0'}" onfocus="this.select()" enterkeyhint="next" onchange="updateSet('${exId}',${sIdx},'reps',this.value)">
       <div class="set-vol">${vol||'—'}</div>
-      <button class="set-delete" onclick="deleteSet('${exId}',${sIdx})"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg></button>
+      <button class="set-delete" onclick="deleteSet('${exId}',${sIdx})" aria-label="Șterge set"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg></button>
     </div>
   `;
 }
@@ -1422,16 +1581,16 @@ function renderProgress(el) {
     <div class="metric-stats">
       <div class="metric-card">
         <div class="metric-label">Antrenamente</div>
-        <div class="metric-value">${totals.workouts}</div>
+        <div class="metric-value" data-countup="${totals.workouts}">${totals.workouts}</div>
         <div class="metric-delta ${totals.workoutsDelta>0?'up':totals.workoutsDelta<0?'down':'flat'}">${totals.workoutsDelta>0?'↗':totals.workoutsDelta<0?'↘':'—'} vs anterior</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Volum (kg)</div>
-        <div class="metric-value">${formatNumber(totals.volume)}</div>
+        <div class="metric-value" data-countup="${totals.volume}" data-countup-fmt="k">${formatNumber(totals.volume)}</div>
         <div class="metric-delta ${totals.volumeDelta>0?'up':totals.volumeDelta<0?'down':'flat'}">${totals.volumeDelta>0?'+':''}${formatNumber(totals.volumeDelta)}</div>
       </div>
-      <div class="metric-card"><div class="metric-label">Seturi</div><div class="metric-value">${totals.sets}</div></div>
-      <div class="metric-card"><div class="metric-label">Reps</div><div class="metric-value">${formatNumber(totals.reps)}</div></div>
+      <div class="metric-card"><div class="metric-label">Seturi</div><div class="metric-value" data-countup="${totals.sets}">${totals.sets}</div></div>
+      <div class="metric-card"><div class="metric-label">Reps</div><div class="metric-value" data-countup="${totals.reps}" data-countup-fmt="k">${formatNumber(totals.reps)}</div></div>
     </div>
 
     <div class="section-subtitle">EVOLUȚIE EXERCIȚII</div>
@@ -1476,7 +1635,7 @@ function renderProgressList(allEx, cutoff) {
     .sort((a,b) => a[1].name.localeCompare(b[1].name));
 
   if (!filtered.length) {
-    return `<div class="empty-state"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg><div>Niciun exercițiu cu date încă</div></div>`;
+    return `<div class="empty-state"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg><div class="empty-title">FĂRĂ DATE ÎNCĂ</div><div class="empty-sub">[SISTEM] Loghează un antrenament ca să-ți apară evoluția aici.</div></div>`;
   }
 
   return filtered.map(([id, d]) => {
@@ -1496,7 +1655,7 @@ function renderProgressList(allEx, cutoff) {
       <div class="progress-exercise">
         <div class="progress-exercise-header">
           <div class="progress-exercise-name">${escapeHtml(d.name)}</div>
-          <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-tertiary);">${inR.length} sesiuni</div>
+          <div style="font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-tertiary);">${inR.length} sesiuni</div>
         </div>
         <div class="progress-stats">
           <div class="progress-stat ${kgDelta>0?'delta-up':kgDelta<0?'delta-down':''}"><div class="progress-stat-label">KG</div><div class="progress-stat-value">${kgDelta>=0?'+':''}${kgDelta.toFixed(1)}</div></div>
@@ -1525,10 +1684,10 @@ function renderChart(stats) {
   const id = 'g' + Math.random().toString(36).slice(2,9);
   return `
     <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:100%;" preserveAspectRatio="none">
-      <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8a6eff" stop-opacity="0.4"/><stop offset="100%" stop-color="#8a6eff" stop-opacity="0"/></linearGradient></defs>
+      <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#00ff9d" stop-opacity="0.4"/><stop offset="100%" stop-color="#00ff9d" stop-opacity="0"/></linearGradient></defs>
       <path d="${area}" fill="url(#${id})"/>
-      <path d="${d}" fill="none" stroke="#8a6eff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 2px 6px rgba(138,110,255,0.5))"/>
-      ${pts.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="#d4a843" stroke="#16161e" stroke-width="1.5"/>`).join('')}
+      <path d="${d}" fill="none" stroke="#00ff9d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 2px 6px rgba(0, 255, 157,0.5))"/>
+      ${pts.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="#00e5ff" stroke="#16161e" stroke-width="1.5"/>`).join('')}
     </svg>
   `;
 }
@@ -1578,7 +1737,7 @@ function formatNumber(n) {
 
 function renderHistoryList() {
   const dates = Object.keys(state.workouts).filter(d => hasAnyData(state.workouts[d])).sort().reverse().slice(0, 12);
-  if (!dates.length) return `<div class="empty-state"><div>Niciun antrenament încă</div></div>`;
+  if (!dates.length) return `<div class="empty-state"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 4h4v16H6zM14 4h4v16h-4zM2 12h4M18 12h4M10 12h4"/></svg><div class="empty-title">ISTORIC GOL</div><div class="empty-sub">[SISTEM] Niciun antrenament salvat. Alege o zi și începe.</div></div>`;
   return dates.map(d => {
     const w = state.workouts[d];
     const day = window.PROGRAM[w.dayKey];
@@ -1597,7 +1756,7 @@ function renderHistoryList() {
       <div class="history-day" onclick="openWorkout('${d}','${w.dayKey}')">
         <div class="history-day-header">
           <div><div class="history-day-name">${day?.name || 'Custom'}</div><div class="history-date">${formatDateShort(d)} • ${formatDate(d)}</div></div>
-          <div style="text-align:right;"><div class="history-volume">${formatNumber(vol)} kg</div><div style="font-size:10px;color:var(--text-tertiary);font-family:'JetBrains Mono',monospace;margin-top:2px;">${ts} seturi</div></div>
+          <div style="text-align:right;"><div class="history-volume">${formatNumber(vol)} kg</div><div style="font-size:10px;color:var(--text-tertiary);font-family:'Share Tech Mono',monospace;margin-top:2px;">${ts} seturi</div></div>
         </div>
         <div class="history-exercises">${summary.slice(0,4).map(ex => `<div class="history-exercise-row"><div class="history-exercise-name">${escapeHtml(ex.name)}</div><div class="history-exercise-stats">${ex.sets}× ${displayKg(ex.best)} × ${ex.best.reps}</div></div>`).join('')}</div>
       </div>
@@ -1615,7 +1774,7 @@ function renderRank(el) {
     <div class="section-title">Rang</div>
     <div class="rank-hero">
       <div class="rank-hero-badge" style="color:${rank.color}; border-color:${rank.color}; box-shadow:${rank.glow||'none'}; text-shadow:${rank.glow||'none'};">${rank.name}</div>
-      <div class="rank-hero-level" style="color:${rank.color}; text-shadow: ${rank.glow || '0 0 18px var(--accent-glow)'};">${lvl}</div>
+      <div class="rank-hero-level" data-countup="${lvl}" style="color:${rank.color}; text-shadow: ${rank.glow || '0 0 18px var(--accent-glow)'};">${lvl}</div>
       <div class="rank-hero-label">Hunter Level</div>
       <div class="rank-xp-bar"><div class="rank-xp-fill" style="width:${Math.min(100,(state.system.xp/req)*100)}%;"></div></div>
       <div class="rank-xp-text">${state.system.xp} / ${req} XP</div>
@@ -1683,7 +1842,7 @@ function renderAchievements(el) {
     <div class="section-title">Badges</div>
 
     <div class="badges-hero">
-      <div class="badges-hero-num">${unlocked}<span style="font-size:32px; color: var(--text-tertiary);">/${total}</span></div>
+      <div class="badges-hero-num"><span data-countup="${unlocked}">${unlocked}</span><span style="font-size:32px; color: var(--text-tertiary);">/${total}</span></div>
       <div class="badges-hero-label">ACHIEVEMENTS DEBLOCATE</div>
       <div class="badges-progress-bar"><div class="badges-progress-fill" style="width:${pct}%"></div></div>
       <div class="badges-rarity-row">
@@ -1694,10 +1853,10 @@ function renderAchievements(el) {
       </div>
     </div>
 
-    ${renderGroup('legendary', '◆ LEGENDARY')}
-    ${renderGroup('gold', '◆ GOLD')}
-    ${renderGroup('silver', '◆ SILVER')}
     ${renderGroup('bronze', '◆ BRONZE')}
+    ${renderGroup('silver', '◆ SILVER')}
+    ${renderGroup('gold', '◆ GOLD')}
+    ${renderGroup('legendary', '◆ LEGENDARY')}
 
     <div style="text-align:center; padding: 16px 0; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">
       Apasă pe orice badge pentru detalii
@@ -1735,7 +1894,7 @@ function renderHunter(el) {
         return `
           <div class="hunter-stat" onclick="showStatDetail('${k}')">
             <div class="stat-code">${k}</div>
-            <div class="stat-value-big" style="color:${tier.color}; text-shadow:${tier.glow};">${s.level}</div>
+            <div class="stat-value-big" data-countup="${s.level}" style="color:${tier.color}; text-shadow:${tier.glow};">${s.level}</div>
             <div class="stat-bar-vertical"><div class="stat-bar-fill-v" style="height:${statPct(k)}%; background: linear-gradient(180deg, ${tier.color}, var(--accent));"></div></div>
             <div class="stat-tier" style="color:${tier.color};">${tier.name}</div>
             <div class="stat-label-bottom">${statLabel(k)}</div>
@@ -1750,7 +1909,7 @@ function renderHunter(el) {
     <div class="card" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer; margin-top: 14px;" onclick="navigate('achievements')">
       <div>
         <div class="section-subtitle" style="margin-bottom:4px;">🏆 Badges</div>
-        <div style="font-family: 'Bebas Neue', sans-serif; font-size: 22px; color: var(--gold); letter-spacing:1.5px;">${Object.keys(state.achievements).length} / ${Object.keys(ach).length} <span style="font-size:11px; color:var(--text-tertiary); letter-spacing:0;">deblocate</span></div>
+        <div style="font-family: 'Orbitron', sans-serif; font-size: 22px; color: var(--gold); letter-spacing:1.5px;">${Object.keys(state.achievements).length} / ${Object.keys(ach).length} <span style="font-size:11px; color:var(--text-tertiary); letter-spacing:0;">deblocate</span></div>
       </div>
       <svg fill="none" stroke="var(--accent)" viewBox="0 0 24 24" width="22" height="22" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
     </div>
@@ -1808,7 +1967,7 @@ function renderHunter(el) {
       <button class="danger-btn" onclick="resetAllData()">🗑 Șterge TOATE datele</button>
     </div>
 
-    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v9.0 • SISTEM ACTIV</div>
+    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v12.0 • SISTEM ACTIV</div>
   `;
 }
 
@@ -1915,11 +2074,26 @@ function importData(e) {
   const f = e.target.files[0];
   if (!f) return;
   const r = new FileReader();
-  r.onload = (ev) => {
+  r.onload = async (ev) => {
     try {
       const d = JSON.parse(ev.target.result);
-      if (!confirm('Se vor suprascrie TOATE datele. Ești sigur?')) return;
+      const ok = await showConfirm({ title: 'Import date', body: 'Se vor suprascrie TOATE datele curente cu cele din fișier. Continui?', confirmText: 'IMPORTĂ', danger: true });
+      if (!ok) return;
+      const prevSystem = state.system;
       state = { ...state, ...d, profile: { ...state.profile, ...d.profile } };
+      // Normalizează structurile critice — un backup vechi/parțial poate omite stat-uri sau containere
+      state.system = { ...prevSystem, ...(d.system || {}) };
+      const defStat = () => ({ level: 1, xp: 0 });
+      const imp = d.stats || {};
+      state.stats = {
+        STR: { ...defStat(), ...(imp.STR || {}) },
+        END: { ...defStat(), ...(imp.END || {}) },
+        MND: { ...defStat(), ...(imp.MND || {}) },
+        WIL: { ...defStat(), ...(imp.WIL || {}) }
+      };
+      if (!state.habits) state.habits = {};
+      if (!state.workouts) state.workouts = {};
+      if (!state.customExercises) state.customExercises = {};
       // Reseteaza flag-ul de migrare ca să recalculeze streak-ul pe noile date
       state.system.streakRecomputedV1 = false;
       saveState();
@@ -1961,9 +2135,11 @@ function manualRecomputeStreak() {
   showToast(`🔥 Streak recalculat: ${oldStreak} → ${streak} zile`);
 }
 
-function resetAllData() {
-  if (!confirm('🚨 Ștergi TOT istoricul și setările? Ireversibil!')) return;
-  if (!confirm('Ești 100% sigur? Ultima șansă.')) return;
+async function resetAllData() {
+  const ok1 = await showConfirm({ title: '🚨 Șterge toate datele?', body: 'Se șterge TOT istoricul, progresul și setările. Acțiune ireversibilă!', confirmText: 'ȘTERGE', danger: true });
+  if (!ok1) return;
+  const ok2 = await showConfirm({ title: 'Ultima șansă', body: 'Ești 100% sigur? Nu se mai poate recupera nimic după asta.', confirmText: 'DA, ȘTERGE TOT', danger: true });
+  if (!ok2) return;
   localStorage.removeItem(STORAGE_KEY);
   location.reload();
 }
@@ -2050,6 +2226,7 @@ function updateTimerDisplay() {
 
 // =================== INIT ===================
 loadState();
+migrateState();
 // Migrare unică: recalculează streak-ul din habits pentru date vechi importate
 if (!state.system.streakRecomputedV1) {
   recomputeStreakFromHabits();
@@ -2059,19 +2236,22 @@ if (!state.system.streakRecomputedV1) {
 processDailyRollover();
 ensureBonusForToday();
 ensureBossForWeek();
+_navRender = true;
 render();
 maybeShowWeeklyReport();
 
-// Prevent iOS pull-to-refresh
-document.body.addEventListener('touchmove', (e) => {
-  if (e.target.closest('input, textarea, button, .timer-modal, .modal-overlay')) return;
-}, { passive: true });
+// Onboarding la prima deschidere (doar useri cu adevărat noi)
+if (!state.system.welcomed) {
+  const isFresh = state.system.level === 1 && Object.keys(state.habits || {}).length === 0 && Object.keys(state.workouts || {}).length === 0;
+  if (isFresh) setTimeout(showWelcome, 500);
+  else { state.system.welcomed = true; saveState(); }
+}
 
 // Backdrop click closes modals (except levelup which needs explicit ack)
 document.addEventListener('click', (e) => {
   const overlay = e.target.classList && e.target.classList.contains('modal-overlay') ? e.target : null;
   if (!overlay) return;
-  if (overlay.id === 'levelup-modal') return;
+  if (overlay.id === 'levelup-modal' || overlay.id === 'confirm-modal' || overlay.id === 'welcome-modal') return;
   overlay.classList.remove('active');
 });
 
