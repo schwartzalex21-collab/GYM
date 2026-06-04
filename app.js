@@ -318,7 +318,7 @@ function addXP(amount, reason, statKey) {
   }
 
   // Conversion: 25% of action XP becomes stat XP (was 40%)
-  if (statKey && amount > 0) addStatXP(statKey, Math.max(4, Math.round(amount * 0.25)));
+  if (statKey && amount > 0) addStatXP(statKey, actionStatGain(amount));
 
   if (leveled > 0) {
     showLevelUpModal(state.system.level);
@@ -341,6 +341,32 @@ function addXP(amount, reason, statKey) {
 // Steeper curve, no cap. Reaching 100 takes ~250 workouts. 200 takes ~1500 workouts.
 function statRequiredXP(level) {
   return Math.floor(60 + Math.pow(level, 1.7) * 5);
+}
+
+// Conversia XP de acțiune → XP de stat (un singur loc, folosit și la revocare)
+function actionStatGain(amount) { return Math.max(4, Math.round(amount * 0.25)); }
+
+// Inversul lui addXP — scade XP de sistem și coboară nivelul dacă e cazul (anti-farm la debifare)
+function removeXP(amount) {
+  if (amount <= 0) return;
+  state.system.xp -= amount;
+  while (state.system.xp < 0 && state.system.level > 1) {
+    state.system.level--;
+    state.system.xp += getRequiredXP(state.system.level);
+  }
+  if (state.system.xp < 0) state.system.xp = 0;
+}
+
+// Inversul lui addStatXP — scade XP de stat și coboară nivelul statului (anti-farm la debifare)
+function removeStatXP(key, amount) {
+  const s = state.stats[key];
+  if (!s || amount <= 0) return;
+  s.xp -= amount;
+  while (s.xp < 0 && s.level > 1) {
+    s.level--;
+    s.xp += statRequiredXP(s.level);
+  }
+  if (s.xp < 0) s.xp = 0;
 }
 
 function addStatXP(key, amount) {
@@ -417,12 +443,18 @@ function toggleHabit(date, habitId) {
     checkPerfectDay(date);
   } else {
     haptic('tap');
-    state.system.xp = Math.max(0, state.system.xp - q.xp);
+    removeXP(q.xp);
+    removeStatXP(q.stat, actionStatGain(q.xp)); // revocă și XP-ul de stat (anti-farm prin bifare/debifare)
     // Dacă ziua era marcată perfectă dar acum nu mai e: revocă bonusul + recalculează streak
     const h = state.habits[date];
     if (h.perfect_claimed && !isPerfectDay(h)) {
       h.perfect_claimed = false;
-      state.system.xp = Math.max(0, state.system.xp - 50);
+      removeXP(50);
+      // Revocă shield-ul de zi completă (anti-farm prin undo/redo)
+      if (h.shield_granted) {
+        state.system.shields = Math.max(0, state.system.shields - 1);
+        h.shield_granted = false;
+      }
       recomputeStreakFromHabits();
     }
     saveState();
@@ -439,6 +471,13 @@ function checkPerfectDay(date) {
 
   h.perfect_claimed = true;
   addXP(50, 'Misiune Completă Zilnică!');
+
+  // Zi completă → +1 shield (max 3)
+  if (!h.shield_granted && state.system.shields < 3) {
+    state.system.shields++;
+    h.shield_granted = true;
+    showToast(`🛡 +1 Shield ${state.system.shields}/3`);
+  }
 
   if (state.system.lastPerfectDate === addDaysKey(date, -1)) {
     // Chain consecutiv — continuă streak-ul
@@ -615,11 +654,12 @@ function toggleBonusMission(id) {
     state.system.bonusCompletedTotal = (state.system.bonusCompletedTotal || 0) + 1;
     state.habits[today].bonusDone = (state.habits[today].bonusDone || 0) + 1; // contor per-zi pt. raport săptămânal
     addXP(m.xp, `Bonus: ${getBonusMeta(id).title}`, m.stat);
-    if (m.rarity === 'rare' || m.rarity === 'legendary') {
-      if (state.system.shields < 3) {
-        state.system.shields++;
-        showToast(`🛡 +1 Shield ${state.system.shields}/3`);
-      }
+    // Shield DOAR pentru cea mai bună misiune a zilei (legendara dacă există, altfel rara de top)
+    const _topRarity = (state.bonusMissions.missions || []).some(x => x.rarity === 'legendary') ? 'legendary' : 'rare';
+    if (m.rarity === _topRarity && !m.shieldGranted && state.system.shields < 3) {
+      state.system.shields++;
+      m.shieldGranted = true;
+      showToast(`🛡 +1 Shield ${state.system.shields}/3`);
     }
     if (m.rarity === 'legendary') unlockAchievement('legendary_pull');
     const totalMissions = state.system.bonusCompletedTotal;
@@ -638,8 +678,14 @@ function toggleBonusMission(id) {
     m.completed = false;
     state.system.bonusCompletedTotal = Math.max(0, (state.system.bonusCompletedTotal || 0) - 1);
     state.habits[today].bonusDone = Math.max(0, (state.habits[today].bonusDone || 0) - 1);
-    state.system.xp = Math.max(0, state.system.xp - m.xp);
-    // Nota: stat XP și shield-urile nu se revocă (consistent cu dezbifarea misiunilor principale)
+    removeXP(m.xp);
+    removeStatXP(m.stat, actionStatGain(m.xp));   // revocă XP-ul de stat al misiunii
+    removeStatXP('WIL', Math.round(m.xp * 0.25)); // revocă bonusul de WIL acordat la completare
+    // Revocă shield-ul dacă fusese acordat pentru această misiune (anti-farm prin undo/redo)
+    if (m.shieldGranted) {
+      state.system.shields = Math.max(0, state.system.shields - 1);
+      m.shieldGranted = false;
+    }
   }
   saveState();
   render();
@@ -962,12 +1008,14 @@ function openBonusModal(id) {
   const m = state.bonusMissions.missions.find(x => x.id === id);
   if (!m || !meta) return;
   const modal = document.getElementById('bonus-modal');
+  const _topRarity = state.bonusMissions.missions.some(x => x.rarity === 'legendary') ? 'legendary' : 'rare';
+  const _isTop = m.rarity === _topRarity;
   modal.querySelector('.modal-title').innerHTML = `${meta.title} <span class="rarity-badge ${m.rarity}" style="margin-left:8px; vertical-align:middle;">${m.rarity}</span>`;
   modal.querySelector('#bonus-modal-body').innerHTML = `
     <div style="font-size: 14px; line-height: 1.6; color: var(--text-primary); margin-bottom: 14px;">${meta.desc}</div>
     <div style="font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--accent); letter-spacing: 1px;">RECOMPENSĂ: +${m.xp} XP</div>
     <div style="font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-tertiary); letter-spacing: 1px; margin-top: 4px;">STAT BOOST: ${m.stat}</div>
-    ${m.rarity === 'rare' || m.rarity === 'legendary' ? '<div style="font-size: 11px; color: var(--gold); margin-top: 8px;">🛡 Câștigi 1 shield (max 3) pentru misiune rară completată.</div>' : ''}
+    ${_isTop ? '<div style="font-size: 11px; color: var(--gold); margin-top: 8px;">🛡 Câștigi 1 shield (max 3) — cea mai bună misiune a zilei.</div>' : ''}
   `;
   modal.classList.add('active');
 }
