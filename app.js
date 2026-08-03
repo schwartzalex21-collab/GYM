@@ -248,6 +248,10 @@ const ICON_SHIELD = `<svg viewBox="0 0 24 24" class="svg-shield" aria-hidden="tr
 
 // Un singur shield — acoperă exact o zi ratată. Sursă unică pentru plafon.
 const MAX_SHIELDS = 1;
+
+// Versiunea afișată în UI. La fiecare update se urcă odată cu ?v= din index.html
+// și cu CACHE_NAME din sw.js — toate trei trebuie să rămână sincronizate.
+const APP_VERSION = '27.0';
 const ICON_GEM = `<svg viewBox="0 0 24 24" class="svg-gem" aria-hidden="true"><path fill="currentColor" d="M6 3h12l3.5 5.5L12 21 2.5 8.5z"/><path fill="#fff" opacity="0.22" d="M6 3h12l-6 5.5z"/></svg>`;
 
 // ===== CELEBRARE — explozie de particule + flash de ecran =====
@@ -2141,7 +2145,7 @@ function renderHunter(el) {
       <button class="danger-btn" onclick="resetAllData()">🗑 Șterge TOATE datele</button>
     </div>
 
-    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v16.0 • SISTEM ACTIV</div>
+    <div style="text-align:center; padding: 24px 0 8px; color: var(--text-tertiary); font-size: 11px; letter-spacing:1.5px;">SOLO HUNTER v${APP_VERSION} • SISTEM ACTIV</div>
   `;
 }
 
