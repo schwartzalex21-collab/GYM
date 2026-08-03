@@ -48,6 +48,8 @@ function loadState() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
+      // Conținut corupt (null / array / text) → păstrăm starea implicită, fără excepție
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) { sanitizeState(); return; }
       state = {
         ...state, ...parsed,
         profile: { ...state.profile, ...(parsed.profile || {}) },
@@ -64,10 +66,32 @@ function loadState() {
         weeklyReport: { ...state.weeklyReport, ...(parsed.weeklyReport || {}) },
         settings: { ...state.settings, ...(parsed.settings || {}) }
       };
-      if (!state.customExercises) state.customExercises = {};
-      if (!state.habits) state.habits = {};
+      sanitizeState();
     }
   } catch (e) { console.error('Load error:', e); }
+}
+
+// Garantează invarianții numerici și structurali ai stării, indiferent de ce a fost salvat
+// (localStorage corupt, backup editat manual, versiuni vechi). Folosit la load ȘI la import.
+function sanitizeState() {
+  const num = (v, fallback, min = 0) => {
+    const n = Number(v);
+    return isFinite(n) ? Math.max(min, n) : fallback;
+  };
+  const sy = state.system;
+  sy.level = Math.max(1, Math.floor(num(sy.level, 1, 1)));
+  sy.xp = Math.floor(num(sy.xp, 0));
+  sy.perfectStreak = Math.floor(num(sy.perfectStreak, 0));
+  sy.shields = Math.min(MAX_SHIELDS, Math.floor(num(sy.shields, 0)));
+  ['STR', 'END', 'MND', 'WIL'].forEach(k => {
+    const s = (state.stats && typeof state.stats[k] === 'object' && state.stats[k]) ? state.stats[k] : {};
+    state.stats[k] = { level: Math.max(1, Math.floor(num(s.level, 1, 1))), xp: Math.floor(num(s.xp, 0)) };
+  });
+  ['habits', 'workouts', 'customExercises', 'achievements'].forEach(k => {
+    if (!state[k] || typeof state[k] !== 'object' || Array.isArray(state[k])) state[k] = {};
+  });
+  if (!state.bonusMissions || typeof state.bonusMissions !== 'object') state.bonusMissions = { date: null, missions: [] };
+  if (!Array.isArray(state.bonusMissions.missions)) state.bonusMissions.missions = [];
 }
 
 function saveState() {
@@ -82,7 +106,7 @@ function saveState() {
 // =================== SCHEMA MIGRATIONS ===================
 // Crește SCHEMA_VERSION și adaugă un bloc `if (from < N)` pentru fiecare schimbare
 // de structură a datelor, ca utilizatorii existenți să-și migreze localStorage-ul în siguranță.
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 5;
 function migrateState() {
   const from = state.version || 1;
   if (from >= SCHEMA_VERSION) return;
@@ -94,6 +118,32 @@ function migrateState() {
   if (from < 3) {
     if (!state.system.lastPerfectDate) recomputeStreakFromHabits();
     state.system.lastCheckDate = null;
+  }
+  // from < 4: zilele acoperite de shield nu erau marcate în istoric, așa că orice recalculare
+  //           tăia streak-ul la prima gaură (ex. 6 → 2). Marcăm retroactiv golurile deja
+  //           „plătite" cu shield-uri, ca lanțul salvat să fie respectat de acum înainte.
+  if (from < 4) {
+    const saved = state.system.perfectStreak || 0;
+    if (saved > 0 && state.system.lastPerfectDate) {
+      let counted = 0;
+      let cursor = state.system.lastPerfectDate;
+      let guard = 0;
+      // Mergem înapoi până adunăm atâtea zile perfecte cât spune streak-ul salvat;
+      // zilele ne-perfecte întâlnite pe drum au fost acoperite de shield-uri.
+      while (counted < saved && guard++ < 3650) {
+        const h = state.habits[cursor];
+        if (isPerfectDay(h)) counted++;
+        else {
+          if (!state.habits[cursor]) state.habits[cursor] = {};
+          state.habits[cursor].shield_saved = true;
+        }
+        cursor = addDaysKey(cursor, -1);
+      }
+    }
+  }
+  // from < 5: plafonul de shield-uri a coborât de la 3 la 1 — taie surplusul salvat.
+  if (from < 5) {
+    state.system.shields = Math.min(MAX_SHIELDS, Math.max(0, Number(state.system.shields) || 0));
   }
   state.version = SCHEMA_VERSION;
   saveState();
@@ -195,6 +245,9 @@ function runCountUps() {
 // ===== ICONIȚE SVG PREMIUM (gradient, consistente cross-platform) =====
 const ICON_FLAME = `<svg viewBox="0 0 24 24" class="svg-flame" aria-hidden="true"><path fill="url(#grad-flame)" d="M12 22a7 7 0 0 0 7-7c0-2-3-6-7-10-4 4-7 8-7 10a7 7 0 0 0 7 7z"/></svg>`;
 const ICON_SHIELD = `<svg viewBox="0 0 24 24" class="svg-shield" aria-hidden="true"><path fill="url(#grad-shield)" d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5l8-3z"/></svg>`;
+
+// Un singur shield — acoperă exact o zi ratată. Sursă unică pentru plafon.
+const MAX_SHIELDS = 1;
 const ICON_GEM = `<svg viewBox="0 0 24 24" class="svg-gem" aria-hidden="true"><path fill="currentColor" d="M6 3h12l3.5 5.5L12 21 2.5 8.5z"/><path fill="#fff" opacity="0.22" d="M6 3h12l-6 5.5z"/></svg>`;
 
 // ===== CELEBRARE — explozie de particule + flash de ecran =====
@@ -303,10 +356,15 @@ const RANK_TIERS = [
 ];
 
 function getRank(level) {
-  return RANK_TIERS.find(t => level >= t.min && level <= t.max) || RANK_TIERS[0];
+  const lvl = Number(level) || 1;
+  // Peste ultimul prag rămâne rangul maxim (nu cade înapoi la E-Rank)
+  if (lvl >= RANK_TIERS[RANK_TIERS.length - 1].min) return RANK_TIERS[RANK_TIERS.length - 1];
+  return RANK_TIERS.find(t => lvl >= t.min && lvl <= t.max) || RANK_TIERS[0];
 }
 
 function addXP(amount, reason, statKey) {
+  amount = Number(amount);
+  if (!isFinite(amount)) return; // NaN/Infinity ar corupe definitiv XP-ul
   state.system.xp += amount;
   if (state.system.xp < 0) state.system.xp = 0;
 
@@ -348,7 +406,8 @@ function actionStatGain(amount) { return Math.max(4, Math.round(amount * 0.25));
 
 // Inversul lui addXP — scade XP de sistem și coboară nivelul dacă e cazul (anti-farm la debifare)
 function removeXP(amount) {
-  if (amount <= 0) return;
+  amount = Number(amount);
+  if (!isFinite(amount) || amount <= 0) return;
   state.system.xp -= amount;
   while (state.system.xp < 0 && state.system.level > 1) {
     state.system.level--;
@@ -360,7 +419,8 @@ function removeXP(amount) {
 // Inversul lui addStatXP — scade XP de stat și coboară nivelul statului (anti-farm la debifare)
 function removeStatXP(key, amount) {
   const s = state.stats[key];
-  if (!s || amount <= 0) return;
+  amount = Number(amount);
+  if (!s || !isFinite(amount) || amount <= 0) return;
   s.xp -= amount;
   while (s.xp < 0 && s.level > 1) {
     s.level--;
@@ -371,7 +431,8 @@ function removeStatXP(key, amount) {
 
 function addStatXP(key, amount) {
   const s = state.stats[key];
-  if (!s || amount <= 0) return;
+  amount = Number(amount);
+  if (!s || !isFinite(amount) || amount <= 0) return;
   const oldLevel = s.level;
   s.xp += amount;
   // No level cap — hunter stats can grow forever
@@ -472,11 +533,11 @@ function checkPerfectDay(date) {
   h.perfect_claimed = true;
   addXP(50, 'Misiune Completă Zilnică!');
 
-  // Zi completă → +1 shield (max 3)
-  if (!h.shield_granted && state.system.shields < 3) {
+  // Zi completă → +1 shield (plafon MAX_SHIELDS)
+  if (!h.shield_granted && state.system.shields < MAX_SHIELDS) {
     state.system.shields++;
     h.shield_granted = true;
-    showToast(`🛡 +1 Shield ${state.system.shields}/3`);
+    showToast(`🛡 +1 Shield ${state.system.shields}/${MAX_SHIELDS}`);
   }
 
   if (state.system.lastPerfectDate === addDaysKey(date, -1)) {
@@ -511,6 +572,11 @@ function isPerfectDay(h) {
   return !!(h && h.wim_hof && h.prayer_am && h.affirmations && h.prayer_pm && h.workout_xp_claimed && h.cold_shower);
 }
 
+// O zi ratată dar acoperită de un shield NU rupe lanțul (dar nici nu se numără ca zi perfectă)
+function isShieldSaved(h) { return !!(h && h.shield_saved && !isPerfectDay(h)); }
+// Ziua continuă lanțul dacă e perfectă SAU a fost salvată de un shield
+function continuesChain(h) { return isPerfectDay(h) || isShieldSaved(h); }
+
 function recomputeStreakFromHabits() {
   const today = todayKey();
   // Găsește cea mai recentă zi perfectă (azi sau în trecut)
@@ -528,27 +594,40 @@ function recomputeStreakFromHabits() {
     return { streak: 0, lastPerfect: null };
   }
 
-  // Streak-ul e "viu" DOAR dacă ultima zi perfectă e azi sau ieri.
-  // Dacă e mai veche, lanțul e rupt → streak 0 (deterministic, indiferent de istoricul vechi).
+  // Streak-ul e "viu" dacă ultima zi perfectă e azi/ieri, SAU dacă zilele dintre ea și ieri
+  // au fost toate acoperite de shield-uri. Altfel lanțul e rupt → streak 0.
   const yesterday = addDaysKey(today, -1);
+  // Capătul lanțului: ultima zi perfectă sau, dacă shield-urile au acoperit golul până ieri, ieri.
+  let chainEnd = lastPerfect;
   if (lastPerfect < yesterday) {
-    state.system.perfectStreak = 0;
-    state.system.lastPerfectDate = lastPerfect;
-    return { streak: 0, lastPerfect };
+    let gap = addDaysKey(lastPerfect, 1);
+    let bridged = true;
+    while (gap <= yesterday) {
+      if (!isShieldSaved(state.habits[gap])) { bridged = false; break; }
+      gap = addDaysKey(gap, 1);
+    }
+    if (!bridged) {
+      state.system.perfectStreak = 0;
+      state.system.lastPerfectDate = lastPerfect;
+      return { streak: 0, lastPerfect };
+    }
+    chainEnd = yesterday; // lanțul e viu prin shield-uri → azi îl continuă
   }
 
-  // Numără zile consecutive perfecte mergând înapoi de la lastPerfect
+  // Numără zile consecutive mergând înapoi de la lastPerfect.
+  // Zilele acoperite de shield nu rup lanțul, dar nu se adaugă la numărătoare.
   let streak = 0;
   let cursor = lastPerfect;
-  while (isPerfectDay(state.habits[cursor]) && streak < 10000) {
-    streak++;
+  let guard = 0;
+  while (continuesChain(state.habits[cursor]) && guard++ < 10000) {
+    if (isPerfectDay(state.habits[cursor])) streak++;
     cursor = addDaysKey(cursor, -1);
   }
 
   // PURE recompute — sursa adevărului e istoricul habits, nu valoarea salvată
   state.system.perfectStreak = streak;
-  state.system.lastPerfectDate = lastPerfect;
-  return { streak, lastPerfect };
+  state.system.lastPerfectDate = chainEnd;
+  return { streak, lastPerfect: chainEnd };
 }
 
 // =================== STREAK ROLLOVER & SHIELDS ===================
@@ -565,16 +644,24 @@ function processDailyRollover() {
       let cursor = addDaysKey(last, 1);
       while (cursor <= yesterday) { missed++; cursor = addDaysKey(cursor, 1); }
       // Fiecare zi ratată consumă un shield; când nu mai sunt, streak-ul se rupe (reset la 0)
+      let bridge = addDaysKey(last, 1); // prima zi ratată
       while (missed > 0) {
         if (state.system.shields > 0) {
           state.system.shields--;
           unlockAchievement('untouchable');
+          // Marchează ziua în istoric ca „salvată de shield" — nu rupe lanțul la recalculare
+          if (!state.habits[bridge]) state.habits[bridge] = {};
+          state.habits[bridge].shield_saved = true;
+          bridge = addDaysKey(bridge, 1);
           missed--;
         } else {
           state.system.perfectStreak = 0;
           break;
         }
       }
+      // Dacă shield-urile au acoperit TOATE zilele ratate, streak-ul rămâne viu:
+      // mută „ultima zi perfectă" la ieri, ca ziua de azi să continue lanțul (nu să-l reseteze la 1).
+      if (missed === 0) state.system.lastPerfectDate = yesterday;
     }
   }
 
@@ -656,10 +743,10 @@ function toggleBonusMission(id) {
     addXP(m.xp, `Bonus: ${getBonusMeta(id).title}`, m.stat);
     // Shield DOAR pentru cea mai bună misiune a zilei (legendara dacă există, altfel rara de top)
     const _topRarity = (state.bonusMissions.missions || []).some(x => x.rarity === 'legendary') ? 'legendary' : 'rare';
-    if (m.rarity === _topRarity && !m.shieldGranted && state.system.shields < 3) {
+    if (m.rarity === _topRarity && !m.shieldGranted && state.system.shields < MAX_SHIELDS) {
       state.system.shields++;
       m.shieldGranted = true;
-      showToast(`🛡 +1 Shield ${state.system.shields}/3`);
+      showToast(`🛡 +1 Shield ${state.system.shields}/${MAX_SHIELDS}`);
     }
     if (m.rarity === 'legendary') unlockAchievement('legendary_pull');
     const totalMissions = state.system.bonusCompletedTotal;
@@ -917,6 +1004,7 @@ function getExerciseMeta(exId) {
 }
 
 function computeTotalKg(set) {
+  if (!set) return 0;
   const kg = parseFloat(String(set.kg).replace(',', '.')) || 0;
   if (set.unit === 'side') return state.settings.barWeight + kg * 2;
   if (set.unit === 'db') return kg * 2;
@@ -924,6 +1012,7 @@ function computeTotalKg(set) {
 }
 
 function displayKg(set) {
+  if (!set) return '—';
   const kg = parseFloat(String(set.kg).replace(',', '.')) || 0;
   if (kg === 0) return '—';
   if (set.unit === 'side') return `${kg}×2 + ${state.settings.barWeight}`;
@@ -940,7 +1029,7 @@ function findLastExerciseEntry(exId, excludeDate) {
   const dates = Object.keys(state.workouts).filter(d => d !== excludeDate && state.workouts[d].exercises[exId]).sort().reverse();
   for (const d of dates) {
     const ex = state.workouts[d].exercises[exId];
-    if (ex?.sets?.some(s => s.kg || s.reps)) return { date: d, sets: ex.sets };
+    if (ex?.sets?.some(s => s && (s.kg || s.reps))) return { date: d, sets: ex.sets };
   }
   return null;
 }
@@ -948,7 +1037,7 @@ function findLastExerciseEntry(exId, excludeDate) {
 function hasAnyData(w) {
   if (!w?.exercises) return false;
   return Object.values(w.exercises).some(ex =>
-    ex?.sets?.some(s => String(s.kg||'').trim() || String(s.reps||'').trim())
+    ex?.sets?.some(s => s && (String(s.kg||'').trim() || String(s.reps||'').trim()))
   );
 }
 
@@ -1015,7 +1104,7 @@ function openBonusModal(id) {
     <div style="font-size: 14px; line-height: 1.6; color: var(--text-primary); margin-bottom: 14px;">${meta.desc}</div>
     <div style="font-family: 'Share Tech Mono', monospace; font-size: 12px; color: var(--accent); letter-spacing: 1px;">RECOMPENSĂ: +${m.xp} XP</div>
     <div style="font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--text-tertiary); letter-spacing: 1px; margin-top: 4px;">STAT BOOST: ${m.stat}</div>
-    ${_isTop ? '<div style="font-size: 11px; color: var(--gold); margin-top: 8px;">🛡 Câștigi 1 shield (max 3) — cea mai bună misiune a zilei.</div>' : ''}
+    ${_isTop ? `<div style="font-size: 11px; color: var(--gold); margin-top: 8px;">🛡 Câștigi 1 shield (max ${MAX_SHIELDS}) — cea mai bună misiune a zilei.</div>` : ''}
   `;
   modal.classList.add('active');
 }
@@ -1108,7 +1197,7 @@ function renderHome(el) {
         </div>
         <div class="status-stat">
           <div class="shield-stack" style="justify-content:center; height:38px; align-items:center;">
-            ${[0,1,2].map(i => `<div class="shield-icon ${i < shields ? 'active' : ''}">${ICON_SHIELD}</div>`).join('')}
+            ${Array.from({length: MAX_SHIELDS}, (_, i) => `<div class="shield-icon ${i < shields ? 'active' : ''}">${ICON_SHIELD}</div>`).join('')}
           </div>
           <div class="status-stat-label">Shields</div>
         </div>
@@ -1424,7 +1513,7 @@ function renderExerciseCard(ex, idx, workout) {
   const last = findLastExerciseEntry(ex.id, currentWorkoutDate);
   let lastDisplay = '', overload = '';
   if (last) {
-    const valid = last.sets.filter(s => s.kg && s.reps);
+    const valid = last.sets.filter(s => s && s.kg && s.reps);
     if (valid.length) {
       const best = valid.reduce((m, s) => computeTotalKg(s) > computeTotalKg(m) ? s : m, valid[0]);
       lastDisplay = `LAST: ${displayKg(best)} × ${best.reps}`;
@@ -1476,6 +1565,7 @@ function renderUnitToggle(exId, unit) {
 }
 
 function renderSetRow(exId, sIdx, set) {
+  if (!set || typeof set !== 'object') set = { kg:'', reps:'', unit:'total' };
   const total = set.kg && set.reps ? computeTotalKg(set) : 0;
   const vol = total && set.reps ? total * parseFloat(set.reps) : 0;
   const done = set.kg && set.reps;
@@ -1506,7 +1596,14 @@ function ensureExercise(exId) {
       notes: ''
     };
   }
-  return state.workouts[currentWorkoutDate].exercises[exId];
+  const exData = state.workouts[currentWorkoutDate].exercises[exId];
+  // Repară structuri corupte (import stricat / date vechi): sets trebuie să fie obiecte valide
+  const meta = getExerciseMeta(exId);
+  if (!Array.isArray(exData.sets)) exData.sets = [];
+  exData.sets = exData.sets.map(s =>
+    (s && typeof s === 'object') ? s : { kg:'', reps:'', unit: meta.defaultUnit || 'total' }
+  );
+  return exData;
 }
 
 function updateSet(exId, sIdx, field, value) {
@@ -1527,7 +1624,7 @@ function updateSet(exId, sIdx, field, value) {
     const v = c.querySelector(`[data-sidx="${sIdx}"] .set-vol`);
     if (v) v.textContent = vol ? fmtVol(vol) : '—';
     const card = document.getElementById(`card-${exId}`);
-    if (card && exData.sets.every(s => s.kg && s.reps)) {
+    if (card && exData.sets.every(s => s && s.kg && s.reps)) {
       card.classList.add('active-exercise');
       setTimeout(() => card.classList.remove('active-exercise'), 500);
     }
@@ -1537,7 +1634,7 @@ function updateSet(exId, sIdx, field, value) {
 function setUnit(exId, unit) {
   const exData = ensureExercise(exId);
   if (exData.sets.length === 0) exData.sets = [{kg:'',reps:'',unit},{kg:'',reps:'',unit},{kg:'',reps:'',unit}];
-  else exData.sets.forEach(s => s.unit = unit);
+  else exData.sets.forEach(s => { if (s) s.unit = unit; });
   saveState();
   const c = document.getElementById(`sets-${exId}`);
   const t = document.getElementById(`unit-toggle-${exId}`);
@@ -1578,7 +1675,7 @@ function copyLastSets(exId) {
   const last = findLastExerciseEntry(exId, currentWorkoutDate);
   if (!last) return;
   const exData = ensureExercise(exId);
-  exData.sets = last.sets.map(s => ({ kg: s.kg, reps: s.reps, unit: s.unit }));
+  exData.sets = last.sets.filter(Boolean).map(s => ({ kg: s.kg, reps: s.reps, unit: s.unit }));
   saveState();
   showToast('✅ Seturi copiate');
   render();
@@ -1595,7 +1692,7 @@ function finishWorkout() {
     addStatXP('STR', 25);
     checkPerfectDay(today);
     
-    const totalWorkouts = Object.keys(state.habits).filter(d => state.habits[d].workout_xp_claimed).length;
+    const totalWorkouts = Object.keys(state.habits).filter(d => state.habits[d] && state.habits[d].workout_xp_claimed).length;
     const workoutMilestones = [1, 5, 10, 20, 30, 40, 50, 75, 100, 150, 200, 250, 300];
     workoutMilestones.forEach(val => {
       if (totalWorkouts >= val) unlockAchievement(`workout_${val}`);
@@ -1612,15 +1709,17 @@ function openCustomExerciseModal() {
   document.getElementById('custom-ex-name').focus();
 }
 function closeCustomExerciseModal() {
-  document.getElementById('custom-ex-modal').classList.remove('active');
-  document.getElementById('custom-ex-name').value = '';
+  document.getElementById('custom-ex-modal')?.classList.remove('active');
+  const n = document.getElementById('custom-ex-name');
+  if (n) n.value = '';
 }
 function addCustomExercise() {
   haptic('tap');
-  const name = document.getElementById('custom-ex-name').value.trim();
+  const nameEl = document.getElementById('custom-ex-name');
+  const name = (nameEl ? nameEl.value : '').trim();
   if (!name) { showToast('❌ Numele este obligatoriu'); return; }
   let id = Object.keys(state.customExercises).find(k => state.customExercises[k].name.toLowerCase() === name.toLowerCase());
-  const unit = document.getElementById('custom-ex-unit').value;
+  const unit = document.getElementById('custom-ex-unit')?.value || 'total';
   if (!id) { id = 'custom_' + Date.now(); state.customExercises[id] = { name, target:'Custom', defaultUnit: unit, note:'' }; }
   ensureExercise(id);
   state.workouts[currentWorkoutDate].exercises[id].sets = [{kg:'',reps:'',unit},{kg:'',reps:'',unit},{kg:'',reps:'',unit}];
@@ -1676,14 +1775,17 @@ function renderProgress(el) {
 function setRange(k) { progressRange = k; render(); }
 function setProgressSearch(v) {
   progressSearch = v;
-  document.getElementById('progress-list').innerHTML = renderProgressList(getAllExercises(), getRangeCutoff(progressRange));
+  const el = document.getElementById('progress-list');
+  if (!el) return; // input-ul poate declanșa după ce s-a schimbat pagina
+  el.innerHTML = renderProgressList(getAllExercises(), getRangeCutoff(progressRange));
 }
 
 function getAllExercises() {
   const all = {};
   Object.entries(state.workouts).forEach(([d, w]) => {
-    Object.entries(w.exercises || {}).forEach(([exId, exData]) => {
-      const valid = (exData.sets || []).filter(s => s.kg && s.reps);
+    Object.entries((w && w.exercises) || {}).forEach(([exId, exData]) => {
+      if (!exData) return;
+      const valid = (exData.sets || []).filter(s => s && s.kg && s.reps);
       if (!valid.length) return;
       if (!all[exId]) all[exId] = { entries: [] };
       all[exId].entries.push({ date: d, sets: valid });
@@ -1713,8 +1815,8 @@ function renderProgressList(allEx, cutoff) {
     const inR = d.entries.filter(e => !cutoff || e.date >= cutoff).sort((a,b) => a.date.localeCompare(b.date));
     if (!inR.length) return '';
     const stats = inR.map(e => {
-      const maxKg = Math.max(...e.sets.map(s => computeTotalKg(s)));
-      const vol = e.sets.reduce((s, x) => s + computeTotalKg(x) * (parseFloat(x.reps)||0), 0);
+      const maxKg = Math.max(0, ...e.sets.filter(Boolean).map(s => computeTotalKg(s)));
+      const vol = e.sets.filter(Boolean).reduce((s, x) => s + computeTotalKg(x) * (parseFloat(x.reps)||0), 0);
       return { date: e.date, maxKg, volume: vol };
     });
     const first = stats[0], last = stats[stats.length-1];
@@ -1787,9 +1889,10 @@ function computeTotals(cutoff) {
     const inC = !cutoff || date >= cutoff;
     const inP = prevCut && date >= prevCut && date < cutoff;
     let v=0, s=0, r=0;
-    Object.values(w.exercises || {}).forEach(ex => {
+    Object.values((w && w.exercises) || {}).forEach(ex => {
+      if (!ex) return;
       (ex.sets || []).forEach(set => {
-        if (set.kg && set.reps) {
+        if (set && set.kg && set.reps) {
           v += computeTotalKg(set) * parseFloat(set.reps);
           s++; r += parseFloat(set.reps);
         }
@@ -1815,7 +1918,7 @@ function renderHistoryList() {
     let vol = 0, ts = 0;
     const summary = [];
     Object.entries(w.exercises || {}).forEach(([exId, exData]) => {
-      const valid = (exData.sets || []).filter(s => s.kg && s.reps);
+      const valid = (exData.sets || []).filter(s => s && s.kg && s.reps);
       if (!valid.length) return;
       let exV = 0;
       valid.forEach(s => { exV += computeTotalKg(s) * parseFloat(s.reps); ts++; });
@@ -1940,7 +2043,7 @@ function renderHunter(el) {
   const p = state.profile;
   const lvl = state.system.level;
   const rank = getRank(lvl);
-  const totalWorkouts = Object.keys(state.habits).filter(d => state.habits[d].workout_xp_claimed).length;
+  const totalWorkouts = Object.keys(state.habits).filter(d => state.habits[d] && state.habits[d].workout_xp_claimed).length;
   const ach = window.ACHIEVEMENTS;
 
   el.innerHTML = `
@@ -1988,7 +2091,7 @@ function renderHunter(el) {
     <div class="section-title" style="margin-top: 22px;">Profil</div>
     <div class="card">
       <div class="profile-header">
-        <div class="avatar" onclick="document.getElementById('photo-input').click()">
+        <div class="avatar" onclick="document.getElementById('photo-input')?.click()">
           ${p.photo ? `<img src="${p.photo}" alt="Avatar">` : (p.name?.[0] || 'A').toUpperCase()}
           <div class="avatar-edit"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg></div>
         </div>
@@ -2033,7 +2136,7 @@ function renderHunter(el) {
       <div class="section-subtitle">Date</div>
       <button class="export-btn" onclick="manualRecomputeStreak()">🔥 Recalculează Streak din istoric</button>
       <button class="export-btn" onclick="exportData()">📤 Export backup JSON</button>
-      <button class="export-btn" onclick="document.getElementById('import-input').click()">📥 Import backup</button>
+      <button class="export-btn" onclick="document.getElementById('import-input')?.click()">📥 Import backup</button>
       <input type="file" id="import-input" accept=".json,application/json" style="display:none" onchange="importData(event)">
       <button class="danger-btn" onclick="resetAllData()">🗑 Șterge TOATE datele</button>
     </div>
@@ -2071,6 +2174,7 @@ function showAchievementInfoModal(a, dateStr) {
 
 function showStatDetail(key) {
   const s = state.stats[key];
+  if (!s) return;
   const tier = getStatTier(s.level);
   const req = statRequiredXP(s.level);
   const next = getStatTier(s.level + 1);
@@ -2121,6 +2225,7 @@ function handlePhotoUpload(e) {
 
 function addGoal() {
   const i = document.getElementById('new-goal');
+  if (!i) return;
   const v = i.value.trim();
   if (!v) return;
   if (!state.profile.goals) state.profile.goals = [];
@@ -2150,21 +2255,21 @@ function importData(e) {
       const d = JSON.parse(ev.target.result);
       const ok = await showConfirm({ title: 'Import date', body: 'Se vor suprascrie TOATE datele curente cu cele din fișier. Continui?', confirmText: 'IMPORTĂ', danger: true });
       if (!ok) return;
+      if (!d || typeof d !== 'object' || Array.isArray(d)) { showToast('❌ Fișier invalid'); return; }
       const prevSystem = state.system;
       state = { ...state, ...d, profile: { ...state.profile, ...d.profile } };
       // Normalizează structurile critice — un backup vechi/parțial poate omite stat-uri sau containere
       state.system = { ...prevSystem, ...(d.system || {}) };
-      const defStat = () => ({ level: 1, xp: 0 });
-      const imp = d.stats || {};
+      // Un backup editat manual poate conține text/null unde așteptăm numere — normalizarea
+      // garantează că starea rămâne validă (aceeași folosită și la încărcare).
+      const imp = (d.stats && typeof d.stats === 'object') ? d.stats : {};
       state.stats = {
-        STR: { ...defStat(), ...(imp.STR || {}) },
-        END: { ...defStat(), ...(imp.END || {}) },
-        MND: { ...defStat(), ...(imp.MND || {}) },
-        WIL: { ...defStat(), ...(imp.WIL || {}) }
+        STR: { level: 1, xp: 0, ...((imp.STR && typeof imp.STR === 'object') ? imp.STR : {}) },
+        END: { level: 1, xp: 0, ...((imp.END && typeof imp.END === 'object') ? imp.END : {}) },
+        MND: { level: 1, xp: 0, ...((imp.MND && typeof imp.MND === 'object') ? imp.MND : {}) },
+        WIL: { level: 1, xp: 0, ...((imp.WIL && typeof imp.WIL === 'object') ? imp.WIL : {}) }
       };
-      if (!state.habits) state.habits = {};
-      if (!state.workouts) state.workouts = {};
-      if (!state.customExercises) state.customExercises = {};
+      sanitizeState();
       // Reseteaza flag-ul de migrare ca să recalculeze streak-ul pe noile date
       state.system.streakRecomputedV1 = false;
       saveState();
@@ -2186,24 +2291,8 @@ function importData(e) {
 // Recalculare manuală — accesibilă din butonul Hunter
 function manualRecomputeStreak() {
   const oldStreak = state.system.perfectStreak;
-  // Forțăm recalculare brută (fără max cu salvat) ca să corecteze inflații accidentale
-  const today = todayKey();
-  let lastPerfect = null;
-  let c = today;
-  for (let i = 0; i < 3650; i++) {
-    if (isPerfectDay(state.habits[c])) { lastPerfect = c; break; }
-    c = addDaysKey(c, -1);
-  }
-  let streak = 0;
-  if (lastPerfect) {
-    let cursor = lastPerfect;
-    while (isPerfectDay(state.habits[cursor]) && streak < 10000) {
-      streak++;
-      cursor = addDaysKey(cursor, -1);
-    }
-  }
-  state.system.perfectStreak = streak;
-  state.system.lastPerfectDate = lastPerfect;
+  // O singură sursă de adevăr — aceeași logică folosită peste tot (inclusiv zilele salvate de shield)
+  const { streak } = recomputeStreakFromHabits();
   saveState();
   render();
   showToast(`🔥 Streak recalculat: ${oldStreak} → ${streak} zile`);

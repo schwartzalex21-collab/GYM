@@ -204,8 +204,9 @@
   </div>
 </div>
 
-<script src="data.js"></script>
-<script src="app.js"></script>
+<!-- ?v= la fiecare update: forțează browserul să ia fișierele noi, nu din cache -->
+<script src="data.js?v=26"></script>
+<script src="app.js?v=26"></script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

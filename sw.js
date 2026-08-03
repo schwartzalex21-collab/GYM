@@ -1,10 +1,10 @@
-const CACHE_NAME = 'solo-hunter-v16';
+const CACHE_NAME = 'solo-hunter-v26';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
-  './app.js',
-  './data.js',
+  './app.js?v=26',
+  './data.js?v=26',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
